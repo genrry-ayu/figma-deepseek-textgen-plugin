@@ -42,7 +42,16 @@ figma.ui.onmessage = async (msg) => {
         break;
       case 'sync-frames':
         isSyncCancelled = false;
-        await syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+        console.log('收到同步请求，开始处理...');
+        try {
+          await syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+        } catch (error) {
+          console.error('同步过程中发生错误:', error);
+          figma.ui.postMessage({
+            type: 'sync-error',
+            error: error.message
+          });
+        }
         break;
       case 'cancel-sync':
         isSyncCancelled = true;
@@ -591,9 +600,11 @@ async function loadApiKey() {
   }
 }
 
-// 高性能多帧同步功能
+// 简化的多帧同步功能（测试版本）
 async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSourceFrame = false, options = {}) {
   try {
+    console.log('开始同步函数，参数:', { frameIds, sourceFrameId, threshold, includeSourceFrame, options });
+    
     const {
       nameOnly = false,        // 仅同名匹配模式（极速）
       cellSize = 0.06,         // 空间网格单元大小
@@ -609,42 +620,43 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       throw new Error('请选择源Frame');
     }
 
+    console.log('开始获取Frame节点...');
+    updateProgress(5, '获取Frame节点...');
+    
     // 获取所有Frame节点
-    const frames = frameIds
-      .map(id => figma.getNodeById(id))
-      .filter(node => node && node.type === 'FRAME');
+    const frames = [];
+    for (let i = 0; i < frameIds.length; i++) {
+      const id = frameIds[i];
+      const node = figma.getNodeById(id);
+      console.log(`获取节点 ${id}:`, node ? node.type : 'null');
+      if (node && node.type === 'FRAME') {
+        frames.push(node);
+      }
+    }
+
+    console.log(`找到 ${frames.length} 个有效Frame节点`);
 
     if (frames.length < 2) {
       throw new Error('未找到有效的Frame节点');
     }
 
     // 获取源Frame
-    const sourceFrame = frames.find(frame => frame.id === sourceFrameId);
+    let sourceFrame = null;
+    for (let i = 0; i < frames.length; i++) {
+      if (frames[i].id === sourceFrameId) {
+        sourceFrame = frames[i];
+        break;
+      }
+    }
+    
     if (!sourceFrame) {
       throw new Error('未找到源Frame');
     }
 
-    console.log(`开始高性能多帧同步: ${frames.length} 个Frame, 模式: ${nameOnly ? '仅同名' : '同名+位置'}`);
+    console.log(`开始简化多帧同步: ${frames.length} 个Frame, 源Frame: ${sourceFrame.name}`);
     
     // 更新进度
-    updateProgress(5, '开始同步...');
-
-    // 检查Frame尺寸差异
-    const sizeWarnings = [];
-    for (const frame of frames) {
-      if (frame.id === sourceFrameId) continue;
-      const widthRatio = Math.min(frame.width / sourceFrame.width, sourceFrame.width / frame.width);
-      const heightRatio = Math.min(frame.height / sourceFrame.height, sourceFrame.height / frame.height);
-      const minRatio = Math.min(widthRatio, heightRatio);
-      
-      if (minRatio < 0.8) {
-        sizeWarnings.push(frame.name);
-      }
-    }
-
-    if (sizeWarnings.length > 0) {
-      console.warn('Frame尺寸差异较大，匹配精度可能受影响:', sizeWarnings);
-    }
+    updateProgress(10, '开始同步...');
 
     // 检查是否已取消
     if (isSyncCancelled) {
@@ -652,28 +664,46 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       return;
     }
     
-    // 创建源Frame的文本索引
-    updateProgress(15, '分析源Frame...');
-    const sourceIndex = createTextIndex(sourceFrame, cellSize);
-    console.log(`源Frame "${sourceFrame.name}" 包含 ${sourceIndex.infos.length} 个文本节点`);
+    // 简化版本：直接获取文本节点
+    updateProgress(20, '获取文本节点...');
+    console.log('开始获取源Frame文本节点...');
+    
+    let sourceTextNodes;
+    try {
+      sourceTextNodes = getTextNodesInFrame(sourceFrame);
+      console.log(`源Frame "${sourceFrame.name}" 包含 ${sourceTextNodes.length} 个文本节点`);
+    } catch (error) {
+      console.error('获取源Frame文本节点失败:', error);
+      throw new Error(`获取源Frame文本节点失败: ${error.message}`);
+    }
+    
+    if (sourceTextNodes.length === 0) {
+      figma.notify('源Frame中没有文本节点');
+      figma.ui.postMessage({
+        type: 'sync-summary',
+        matchCount: 0,
+        replaceCount: 0,
+        unmatchCount: 0,
+        skippedCount: 0,
+        lockedCount: 0,
+        componentCount: 0
+      });
+      return;
+    }
 
-    // 创建目标Frame的文本索引
-    updateProgress(25, '分析目标Frame...');
-    const targetFrames = includeSourceFrame ? frames : frames.filter(frame => frame.id !== sourceFrameId);
-    const targetIndexes = targetFrames.map(frame => {
-      const textIndex = createTextIndex(frame, cellSize);
-      return {
-        frame: frame,
-        infos: textIndex.infos,
-        byName: textIndex.byName,
-        spatialGrid: textIndex.spatialGrid,
-        used: textIndex.used
-      };
-    });
-
-    targetIndexes.forEach(index => {
-      console.log(`目标Frame "${index.frame.name}" 包含 ${index.infos.length} 个文本节点`);
-    });
+    // 简化版本：获取目标Frame
+    updateProgress(30, '获取目标Frame...');
+    console.log('开始获取目标Frame...');
+    
+    const targetFrames = [];
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+      if (includeSourceFrame || frame.id !== sourceFrameId) {
+        targetFrames.push(frame);
+      }
+    }
+    
+    console.log(`找到 ${targetFrames.length} 个目标Frame`);
     
     // 检查是否已取消
     if (isSyncCancelled) {
@@ -688,33 +718,39 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     let componentCount = 0;
     const pendingWrites = []; // 待写入的节点列表
 
-    // 匹配阶段（不写入）
-    updateProgress(35, '开始匹配文本节点...');
-    const totalSourceNodes = sourceIndex.infos.length;
+    // 简化匹配阶段
+    updateProgress(40, '开始匹配文本节点...');
+    const totalSourceNodes = sourceTextNodes.length;
     
-    for (let i = 0; i < sourceIndex.infos.length; i++) {
+    for (let i = 0; i < sourceTextNodes.length; i++) {
       // 检查是否已取消
       if (isSyncCancelled) {
         figma.ui.postMessage({ type: 'sync-cancelled' });
         return;
       }
       
-      const sourceInfo = sourceIndex.infos[i];
-      const sourceNode = sourceInfo.node;
+      const sourceNode = sourceTextNodes[i];
       const matchedNodes = [];
       
       // 更新匹配进度
-      const matchProgress = 35 + Math.floor((i / totalSourceNodes) * 40);
+      const matchProgress = 40 + Math.floor((i / totalSourceNodes) * 30);
       updateProgress(matchProgress, `匹配节点 ${i + 1}/${totalSourceNodes}`);
 
-      // 为每个目标Frame找到匹配的节点
-      for (const targetIndex of targetIndexes) {
-        const bestMatch = findBestTextMatchFast(sourceNode, targetIndex, threshold, nameOnly);
-        
-        if (bestMatch) {
-          matchedNodes.push(bestMatch.node);
-          totalMatches++;
-        } else {
+      // 为每个目标Frame找到匹配的节点（简化版本）
+      for (let j = 0; j < targetFrames.length; j++) {
+        const targetFrame = targetFrames[j];
+        try {
+          const targetTextNodes = getTextNodesInFrame(targetFrame);
+          const bestMatch = findBestTextMatchSimple(sourceNode, targetTextNodes, threshold, nameOnly);
+          
+          if (bestMatch) {
+            matchedNodes.push(bestMatch);
+            totalMatches++;
+          } else {
+            totalMisses++;
+          }
+        } catch (error) {
+          console.warn(`处理目标Frame "${targetFrame.name}" 时出错:`, error);
           totalMisses++;
         }
       }
@@ -725,22 +761,20 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       let unifiedContent = sourceNode.characters;
       if (!unifiedContent || !unifiedContent.trim()) {
         // 源Frame为空时，使用第一个非空候选
-        const nonEmptyCandidates = matchedNodes
-          .filter(function(node) {
-            return node.characters && node.characters.trim();
-          })
-          .map(function(node) {
-            return node.characters;
-          });
-        if (nonEmptyCandidates.length > 0) {
-          unifiedContent = nonEmptyCandidates[0];
+        for (let k = 0; k < matchedNodes.length; k++) {
+          const node = matchedNodes[k];
+          if (node.characters && node.characters.trim()) {
+            unifiedContent = node.characters;
+            break;
+          }
         }
       }
 
       if (!unifiedContent) continue;
 
       // 收集需要写入的节点（跳过内容相同的）
-      for (const targetNode of matchedNodes) {
+      for (let k = 0; k < matchedNodes.length; k++) {
+        const targetNode = matchedNodes[k];
         if (targetNode.characters !== unifiedContent) {
           if (canWriteToNode(targetNode)) {
             pendingWrites.push({ node: targetNode, content: unifiedContent });
@@ -874,8 +908,32 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
 
 // 高性能文本节点收集 - 使用 findAllWithCriteria 避免深度递归
 function getTextNodesInFrame(frame) {
-  // 使用 Figma 内置的高效搜索，只查找 TEXT 类型节点
-  return frame.findAllWithCriteria({ types: ['TEXT'] });
+  try {
+    // 使用 Figma 内置的高效搜索，只查找 TEXT 类型节点
+    return frame.findAllWithCriteria({ types: ['TEXT'] });
+  } catch (error) {
+    console.warn('findAllWithCriteria 失败，使用递归方式:', error);
+    // 回退到递归方式
+    return getTextNodesInFrameRecursive(frame);
+  }
+}
+
+// 递归方式收集文本节点（回退方案）
+function getTextNodesInFrameRecursive(frame) {
+  const textNodes = [];
+  
+  function traverse(node) {
+    if (node.type === 'TEXT') {
+      textNodes.push(node);
+    } else if (node.children) {
+      for (const child of node.children) {
+        traverse(child);
+      }
+    }
+  }
+  
+  traverse(frame);
+  return textNodes;
 }
 
 // 空间网格索引类型定义
@@ -914,81 +972,86 @@ const createSpatialGrid = (cellSize = 0.06) => {
 
 // 高性能文本节点索引
 function createTextIndex(frame, cellSize = 0.06) {
-  const textNodes = getTextNodesInFrame(frame);
-  const byName = new Map();
-  const spatialGrid = createSpatialGrid(cellSize);
-  const used = new Set();
+  console.log(`开始为Frame "${frame.name}" 创建文本索引...`);
   
-  const infos = textNodes.map(function(node) {
-    const pos = getNormalizedPosition(node, frame);
-    const nameKey = (node.name || '').trim();
+  try {
+    const textNodes = getTextNodesInFrame(frame);
+    console.log(`找到 ${textNodes.length} 个文本节点`);
     
-    // 建立同名索引
-    if (nameKey) {
-      if (!byName.has(nameKey)) byName.set(nameKey, []);
-      byName.get(nameKey).push(node);
+    const byName = new Map();
+    const spatialGrid = createSpatialGrid(cellSize);
+    const used = new Set();
+    
+    const infos = [];
+    for (let i = 0; i < textNodes.length; i++) {
+      const node = textNodes[i];
+      try {
+        const pos = getNormalizedPosition(node, frame);
+        const nameKey = (node.name || '').trim();
+        
+        // 建立同名索引
+        if (nameKey) {
+          if (!byName.has(nameKey)) byName.set(nameKey, []);
+          byName.get(nameKey).push(node);
+        }
+        
+        // 建立空间网格索引
+        spatialGrid.add(node, pos);
+        
+        infos.push({ node: node, pos: pos, nameKey: nameKey });
+      } catch (error) {
+        console.warn(`处理文本节点 "${node.name}" 时出错:`, error);
+        // 跳过有问题的节点，继续处理其他节点
+      }
     }
     
-    // 建立空间网格索引
-    spatialGrid.add(node, pos);
-    
-    return { node: node, pos: pos, nameKey: nameKey };
-  });
-  
-  return { infos, byName, spatialGrid, used };
+    console.log(`成功创建索引，包含 ${infos.length} 个有效文本节点`);
+    return { infos, byName, spatialGrid, used };
+  } catch (error) {
+    console.error(`创建文本索引失败:`, error);
+    throw error;
+  }
 }
 
-// 高性能匹配算法 - 先名后距，使用空间网格
-function findBestTextMatchFast(baseTextNode, targetIndex, threshold, nameOnly = false) {
-  const basePos = getNormalizedPosition(baseTextNode, getParentFrame(baseTextNode));
+// 简化的匹配算法
+function findBestTextMatchSimple(baseTextNode, targetTextNodes, threshold, nameOnly = false) {
   const baseName = (baseTextNode.name || '').trim();
+  const basePos = getNormalizedPosition(baseTextNode, getParentFrame(baseTextNode));
   
   let bestMatch = null;
   let bestScore = Infinity;
   
-  // 1. 同名优先匹配
-  if (baseName && targetIndex.byName.has(baseName)) {
-    const candidates = targetIndex.byName.get(baseName).filter(node => !targetIndex.used.has(node.id));
+  for (let i = 0; i < targetTextNodes.length; i++) {
+    const targetNode = targetTextNodes[i];
+    let score = Infinity;
+    let matchMethod = 'none';
     
-    if (candidates.length > 0) {
-      // 在同名候选中选择位置最近的
-      for (const candidate of candidates) {
-        const candidatePos = getNormalizedPosition(candidate, targetIndex.frame);
-        const distance = Math.sqrt(
-          Math.pow(basePos.x - candidatePos.x, 2) + 
-          Math.pow(basePos.y - candidatePos.y, 2)
-        );
-        
-        if (distance < bestScore && distance <= threshold) {
-          bestScore = distance;
-          bestMatch = { node: candidate, score: distance, method: 'name' };
-        }
-      }
-    }
-  }
-  
-  // 2. 空间网格近邻匹配（如果没找到同名或启用全匹配模式）
-  if (!bestMatch && !nameOnly) {
-    const neighbors = targetIndex.spatialGrid.getNeighbors(basePos, 1);
-    
-    for (const neighbor of neighbors) {
-      if (targetIndex.used.has(neighbor.node.id)) continue;
-      
+    // 1. 同名优先
+    if (baseName && (targetNode.name || '').trim() === baseName) {
+      score = 0;
+      matchMethod = 'name';
+    } else if (!nameOnly) {
+      // 2. 位置匹配
+      const targetPos = getNormalizedPosition(targetNode, getParentFrame(targetNode));
       const distance = Math.sqrt(
-        Math.pow(basePos.x - neighbor.pos.x, 2) + 
-        Math.pow(basePos.y - neighbor.pos.y, 2)
+        Math.pow(basePos.x - targetPos.x, 2) + 
+        Math.pow(basePos.y - targetPos.y, 2)
       );
       
-      if (distance < bestScore && distance <= threshold) {
-        bestScore = distance;
-        bestMatch = { node: neighbor.node, score: distance, method: 'position' };
+      if (distance <= threshold) {
+        score = distance;
+        matchMethod = 'position';
       }
+    }
+    
+    if (score < bestScore) {
+      bestScore = score;
+      bestMatch = targetNode;
     }
   }
   
   if (bestMatch) {
-    targetIndex.used.add(bestMatch.node.id);
-    console.log(`匹配成功: ${baseTextNode.name} -> ${bestMatch.node.name} (${bestMatch.method}, score: ${bestMatch.score.toFixed(4)})`);
+    console.log(`匹配成功: ${baseTextNode.name} -> ${bestMatch.name} (${bestScore === 0 ? 'name' : 'position'})`);
   } else {
     console.log(`未找到匹配: ${baseTextNode.name}`);
   }
