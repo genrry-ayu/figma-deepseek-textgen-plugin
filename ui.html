@@ -204,6 +204,45 @@
       100% { transform: rotate(360deg); }
     }
     
+    .progress-container {
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background-color: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background-color: #007AFF;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    
+    .progress-text {
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+    }
+    
+    .cancel-button {
+      background-color: #ff4444 !important;
+      color: white !important;
+    }
+    
+    .cancel-button:hover {
+      background-color: #cc3333 !important;
+    }
+    
     .hidden {
       display: none;
     }
@@ -403,11 +442,19 @@
     </div>
     
     <button class="button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
+    <button class="button cancel-button" id="cancelBtn" onclick="cancelSync()" style="display: none; background-color: #ff4444; margin-top: 8px;">终止同步</button>
   </div>
   
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    正在生成文案...
+    <span id="loading-text">正在生成文案...</span>
+  </div>
+  
+  <div class="progress-container" id="progressContainer" style="display: none;">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-text" id="progressText">准备中...</div>
   </div>
   
   <div id="status"></div>
@@ -416,6 +463,7 @@
     let selectedTextNodes = [];
     let selectedFrames = [];
     let apiKey = '';
+    let isSyncCancelled = false;
     let currentTab = 'generate';
     
     // 初始化
@@ -482,7 +530,14 @@
           }
           
           showStatus(summaryMessage, msg.dryRun ? 'info' : 'success');
-          hideLoading();
+          hideProgress();
+          break;
+        case 'sync-progress':
+          updateProgress(msg.percentage, msg.text);
+          break;
+        case 'sync-cancelled':
+          hideProgress();
+          showStatus('同步已取消', 'info');
           break;
         case 'sync-error':
           showStatus('同步失败：' + msg.error, 'error');
@@ -604,13 +659,19 @@
       const nameOnlyMode = document.getElementById('nameOnlyMode').checked;
       const dryRunMode = document.getElementById('dryRunMode').checked;
       
-      showLoading();
+      // 重置取消状态
+      isSyncCancelled = false;
+      
+      // 显示进度界面
+      showProgress();
       hideStatus();
       
       parent.postMessage({ 
         pluginMessage: { 
           type: 'sync-frames',
-          frameIds: selectedFrames.map(frame => frame.id),
+          frameIds: selectedFrames.map(function(frame) {
+            return frame.id;
+          }),
           sourceFrameId: sourceFrameId,
           threshold: threshold,
           includeSourceFrame: includeSourceFrame,
@@ -622,6 +683,41 @@
           }
         } 
       }, '*');
+    }
+    
+    // 取消同步
+    function cancelSync() {
+      isSyncCancelled = true;
+      hideProgress();
+      showStatus('同步已取消', 'info');
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'cancel-sync'
+        } 
+      }, '*');
+    }
+    
+    // 显示进度界面
+    function showProgress() {
+      document.getElementById('syncBtn').disabled = true;
+      document.getElementById('cancelBtn').style.display = 'block';
+      document.getElementById('progressContainer').style.display = 'block';
+      document.getElementById('loading').style.display = 'none';
+      updateProgress(0, '准备同步...');
+    }
+    
+    // 隐藏进度界面
+    function hideProgress() {
+      document.getElementById('syncBtn').disabled = false;
+      document.getElementById('cancelBtn').style.display = 'none';
+      document.getElementById('progressContainer').style.display = 'none';
+    }
+    
+    // 更新进度
+    function updateProgress(percentage, text) {
+      document.getElementById('progressFill').style.width = percentage + '%';
+      document.getElementById('progressText').textContent = text;
     }
     
     function toggleConfig() {

@@ -12,6 +12,18 @@ figma.showUI(__html__, {
 // 存储选中的文本节点
 let selectedTextNodes = [];
 
+// 同步取消标志
+let isSyncCancelled = false;
+
+// 发送进度更新
+function updateProgress(percentage, text) {
+  figma.ui.postMessage({
+    type: 'sync-progress',
+    percentage: percentage,
+    text: text
+  });
+}
+
 // 监听来自 UI 的消息
 figma.ui.onmessage = async (msg) => {
   try {
@@ -29,7 +41,12 @@ figma.ui.onmessage = async (msg) => {
         await loadApiKey();
         break;
       case 'sync-frames':
+        isSyncCancelled = false;
         await syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+        break;
+      case 'cancel-sync':
+        isSyncCancelled = true;
+        figma.ui.postMessage({ type: 'sync-cancelled' });
         break;
     }
   } catch (error) {
@@ -608,6 +625,9 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     }
 
     console.log(`开始高性能多帧同步: ${frames.length} 个Frame, 模式: ${nameOnly ? '仅同名' : '同名+位置'}`);
+    
+    // 更新进度
+    updateProgress(5, '开始同步...');
 
     // 检查Frame尺寸差异
     const sizeWarnings = [];
@@ -626,11 +646,19 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       console.warn('Frame尺寸差异较大，匹配精度可能受影响:', sizeWarnings);
     }
 
+    // 检查是否已取消
+    if (isSyncCancelled) {
+      figma.ui.postMessage({ type: 'sync-cancelled' });
+      return;
+    }
+    
     // 创建源Frame的文本索引
+    updateProgress(15, '分析源Frame...');
     const sourceIndex = createTextIndex(sourceFrame, cellSize);
     console.log(`源Frame "${sourceFrame.name}" 包含 ${sourceIndex.infos.length} 个文本节点`);
 
     // 创建目标Frame的文本索引
+    updateProgress(25, '分析目标Frame...');
     const targetFrames = includeSourceFrame ? frames : frames.filter(frame => frame.id !== sourceFrameId);
     const targetIndexes = targetFrames.map(frame => {
       const textIndex = createTextIndex(frame, cellSize);
@@ -646,6 +674,12 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     targetIndexes.forEach(index => {
       console.log(`目标Frame "${index.frame.name}" 包含 ${index.infos.length} 个文本节点`);
     });
+    
+    // 检查是否已取消
+    if (isSyncCancelled) {
+      figma.ui.postMessage({ type: 'sync-cancelled' });
+      return;
+    }
 
     let totalMatches = 0;
     let totalWrites = 0;
@@ -655,9 +689,23 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     const pendingWrites = []; // 待写入的节点列表
 
     // 匹配阶段（不写入）
-    for (const sourceInfo of sourceIndex.infos) {
+    updateProgress(35, '开始匹配文本节点...');
+    const totalSourceNodes = sourceIndex.infos.length;
+    
+    for (let i = 0; i < sourceIndex.infos.length; i++) {
+      // 检查是否已取消
+      if (isSyncCancelled) {
+        figma.ui.postMessage({ type: 'sync-cancelled' });
+        return;
+      }
+      
+      const sourceInfo = sourceIndex.infos[i];
       const sourceNode = sourceInfo.node;
       const matchedNodes = [];
+      
+      // 更新匹配进度
+      const matchProgress = 35 + Math.floor((i / totalSourceNodes) * 40);
+      updateProgress(matchProgress, `匹配节点 ${i + 1}/${totalSourceNodes}`);
 
       // 为每个目标Frame找到匹配的节点
       for (const targetIndex of targetIndexes) {
@@ -747,16 +795,30 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     }
 
     // 批量加载字体
+    updateProgress(80, '加载字体...');
     console.log(`开始批量加载字体，共 ${pendingWrites.length} 个节点`);
     const fontMap = await collectFontsForNodes(pendingWrites.map(function(w) {
       return w.node;
     }));
     await loadFontsBatch(fontMap);
     console.log(`字体加载完成，共 ${fontMap.size} 种字体`);
+    
+    // 检查是否已取消
+    if (isSyncCancelled) {
+      figma.ui.postMessage({ type: 'sync-cancelled' });
+      return;
+    }
 
     // 分批写入，避免阻塞UI
+    updateProgress(85, '写入文本内容...');
     console.log(`开始分批写入，每批 ${batchSize} 个节点`);
     for (let i = 0; i < pendingWrites.length; i += batchSize) {
+      // 检查是否已取消
+      if (isSyncCancelled) {
+        figma.ui.postMessage({ type: 'sync-cancelled' });
+        return;
+      }
+      
       const batch = pendingWrites.slice(i, i + batchSize);
       
       for (const write of batch) {
@@ -768,6 +830,10 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
         }
       }
       
+      // 更新写入进度
+      const writeProgress = 85 + Math.floor(((i + batchSize) / pendingWrites.length) * 10);
+      updateProgress(Math.min(writeProgress, 95), `写入进度 ${Math.min(i + batchSize, pendingWrites.length)}/${pendingWrites.length}`);
+      
       // 让出事件循环，避免阻塞UI
       if (i + batchSize < pendingWrites.length) {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -775,6 +841,7 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     }
 
     // 发送同步结果
+    updateProgress(100, '同步完成！');
     const message = `同步完成：匹配 ${totalMatches} 处，成功写入 ${totalWrites}，未匹配 ${totalMisses}`;
     if (lockedCount > 0 || componentCount > 0) {
       const skipDetails = [];
