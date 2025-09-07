@@ -50,22 +50,26 @@ function handleSelectionChange() {
   // 发送选择信息到 UI
   figma.ui.postMessage({ 
     type: 'selection-changed', 
-    nodes: selectedTextNodes.map(node => ({
-      id: node.id,
-      name: node.name,
-      characters: node.characters
-    })),
-    frames: selectedFrames.map(frame => ({
-      id: frame.id,
-      name: frame.name,
-      width: frame.width,
-      height: frame.height
-    }))
+    nodes: selectedTextNodes.map(function(node) {
+      return {
+        id: node.id,
+        name: node.name,
+        characters: node.characters
+      };
+    }),
+    frames: selectedFrames.map(function(frame) {
+      return {
+        id: frame.id,
+        name: frame.name,
+        width: frame.width,
+        height: frame.height
+      };
+    })
   });
 }
 
 // 监听选择变化事件
-figma.on('selectionchange', () => {
+figma.on('selectionchange', function() {
   handleSelectionChange();
 });
 
@@ -263,12 +267,20 @@ ${enhancedPrompt}。请确保每个输出都完全匹配对应的格式。`;
 function parseBatchText(generatedText, totalCount) {
   try {
     // 按换行符分割文案
-    const lines = generatedText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const lines = generatedText.split('\n').map(function(line) {
+      return line.trim();
+    }).filter(function(line) {
+      return line.length > 0;
+    });
     
     // 如果分割后的行数不够，尝试其他分割方式
     if (lines.length < totalCount) {
       // 尝试按其他分隔符分割
-      const alternativeSplits = generatedText.split(/[，,；;]/).map(line => line.trim()).filter(line => line.length > 0);
+      const alternativeSplits = generatedText.split(/[，,；;]/).map(function(line) {
+        return line.trim();
+      }).filter(function(line) {
+        return line.length > 0;
+      });
       if (alternativeSplits.length >= totalCount) {
         return alternativeSplits.slice(0, totalCount);
       }
@@ -485,11 +497,11 @@ async function collectFontsForNodes(textNodes) {
 
 // 批量加载字体
 async function loadFontsBatch(fontMap) {
-  const fontPromises = Array.from(fontMap.values()).map(fontName => 
-    figma.loadFontAsync(fontName).catch(error => {
+  const fontPromises = Array.from(fontMap.values()).map(function(fontName) {
+    return figma.loadFontAsync(fontName).catch(function(error) {
       console.warn(`字体加载失败: ${fontName.family} ${fontName.style}`, error);
-    })
-  );
+    });
+  });
   
   await Promise.all(fontPromises);
 }
@@ -620,10 +632,16 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
 
     // 创建目标Frame的文本索引
     const targetFrames = includeSourceFrame ? frames : frames.filter(frame => frame.id !== sourceFrameId);
-    const targetIndexes = targetFrames.map(frame => ({
-      frame,
-      ...createTextIndex(frame, cellSize)
-    }));
+    const targetIndexes = targetFrames.map(frame => {
+      const textIndex = createTextIndex(frame, cellSize);
+      return {
+        frame: frame,
+        infos: textIndex.infos,
+        byName: textIndex.byName,
+        spatialGrid: textIndex.spatialGrid,
+        used: textIndex.used
+      };
+    });
 
     targetIndexes.forEach(index => {
       console.log(`目标Frame "${index.frame.name}" 包含 ${index.infos.length} 个文本节点`);
@@ -660,8 +678,12 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       if (!unifiedContent || !unifiedContent.trim()) {
         // 源Frame为空时，使用第一个非空候选
         const nonEmptyCandidates = matchedNodes
-          .filter(node => node.characters && node.characters.trim())
-          .map(node => node.characters);
+          .filter(function(node) {
+            return node.characters && node.characters.trim();
+          })
+          .map(function(node) {
+            return node.characters;
+          });
         if (nonEmptyCandidates.length > 0) {
           unifiedContent = nonEmptyCandidates[0];
         }
@@ -726,7 +748,9 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
 
     // 批量加载字体
     console.log(`开始批量加载字体，共 ${pendingWrites.length} 个节点`);
-    const fontMap = await collectFontsForNodes(pendingWrites.map(w => w.node));
+    const fontMap = await collectFontsForNodes(pendingWrites.map(function(w) {
+      return w.node;
+    }));
     await loadFontsBatch(fontMap);
     console.log(`字体加载完成，共 ${fontMap.size} 种字体`);
 
@@ -808,7 +832,11 @@ const createSpatialGrid = (cellSize = 0.06) => {
       for (let dy = -radius; dy <= radius; dy++) {
         const key = `${centerX + dx},${centerY + dy}`;
         const bucket = grid.get(key);
-        if (bucket) neighbors.push(...bucket);
+        if (bucket) {
+          for (let i = 0; i < bucket.length; i++) {
+            neighbors.push(bucket[i]);
+          }
+        }
       }
     }
     return neighbors;
@@ -824,7 +852,7 @@ function createTextIndex(frame, cellSize = 0.06) {
   const spatialGrid = createSpatialGrid(cellSize);
   const used = new Set();
   
-  const infos = textNodes.map(node => {
+  const infos = textNodes.map(function(node) {
     const pos = getNormalizedPosition(node, frame);
     const nameKey = (node.name || '').trim();
     
@@ -837,7 +865,7 @@ function createTextIndex(frame, cellSize = 0.06) {
     // 建立空间网格索引
     spatialGrid.add(node, pos);
     
-    return { node, pos, nameKey };
+    return { node: node, pos: pos, nameKey: nameKey };
   });
   
   return { infos, byName, spatialGrid, used };
