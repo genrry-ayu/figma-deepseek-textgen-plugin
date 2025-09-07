@@ -1,0 +1,36 @@
+{
+  "name": "figma-textgen-plugin",
+  "version": "1.0.0",
+  "description": "基于大语言模型的 Figma 文案生成插件",
+  "main": "code.js",
+  "scripts": {
+    "build": "echo 'No build process needed for Figma plugins'",
+    "dev": "echo 'Import manifest.json into Figma to start development'"
+  },
+  "keywords": [
+    "figma",
+    "plugin",
+    "ai",
+    "text-generation",
+    "design",
+    "ui",
+    "ux"
+  ],
+  "author": "AI Assistant",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/figma-textgen-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/figma-textgen-plugin/issues"
+  },
+  "homepage": "https://github.com/your-username/figma-textgen-plugin#readme",
+  "engines": {
+    "figma": ">=1.0.0"
+  },
+  "figma": {
+    "id": "textgen-figma-plugin",
+    "displayName": "文案生成助手"
+  }
+}

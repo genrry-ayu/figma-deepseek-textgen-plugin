@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>文案生成助手</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #ffffff;
+      color: #333;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .header .icon {
+      margin-right: 8px;
+      font-size: 16px;
+    }
+    
+    .section {
+      margin-bottom: 16px;
+    }
+    
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .config-section {
+      background: #f8f9fa;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .config-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    
+    .config-toggle:hover {
+      color: #0066cc;
+    }
+    
+    .config-content {
+      display: none;
+    }
+    
+    .config-content.expanded {
+      display: block;
+    }
+    
+    .input-group {
+      margin-bottom: 12px;
+    }
+    
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    
+    .input-group input, .input-group textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: #fff;
+    }
+    
+    .input-group input:focus, .input-group textarea:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+    }
+    
+    .input-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    
+    .button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .button:hover {
+      background: #0052a3;
+    }
+    
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .button.secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .button.secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .status {
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      font-size: 11px;
+    }
+    
+    .status.info {
+      background: #e3f2fd;
+      color: #1976d2;
+      border: 1px solid #bbdefb;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      color: #d32f2f;
+      border: 1px solid #ffcdd2;
+    }
+    
+    .status.success {
+      background: #e8f5e8;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
+    
+    .selection-info {
+      background: #f0f8ff;
+      border: 1px solid #b3d9ff;
+      border-radius: 4px;
+      padding: 8px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      color: #0066cc;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 16px;
+      color: #666;
+    }
+    
+    .loading.show {
+      display: block;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #0066cc;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="icon">✨</span>
+    <h1>文案生成助手</h1>
+  </div>
+  
+  <div class="config-section">
+    <div class="config-toggle" onclick="toggleConfig()">
+      <span class="section-title">🔑 API 配置</span>
+      <span id="config-arrow">▼</span>
+    </div>
+    <div class="config-content" id="config-content">
+      <div class="input-group">
+        <label for="apiKey">API Key:</label>
+        <input type="password" id="apiKey" placeholder="请输入您的 DeepSeek API Key">
+      </div>
+      <button class="button secondary" onclick="saveApiKey()">保存配置</button>
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">📌 选择状态</div>
+    <div class="selection-info" id="selection-info">
+      请先在画布中选择文本图层
+    </div>
+  </div>
+  
+  <div class="section">
+    <div class="section-title">✍️ 文案生成</div>
+    <div class="input-group">
+      <label for="prompt">文案需求描述 (Prompt):</label>
+      <textarea id="prompt" placeholder="例如：生成简短的电商按钮文案，风格要简洁有力"></textarea>
+      <div class="status info" style="margin-top: 8px; font-size: 10px;">
+        💡 提示：使用 DeepSeek API 生成高质量中文文案<br>
+        ⚡ 批量生成：一次API调用生成所有文案，大幅提升性能<br>
+        🎯 推荐提示词：快递单号、公司名称、产品名称、按钮文案、标题文案<br>
+        📋 参考格式：输入"参考：P0\P1"可指定输出格式，数字会自动递增
+      </div>
+    </div>
+    <button class="button" id="generateBtn" onclick="generateText()" disabled>生成文案</button>
+  </div>
+  
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    正在生成文案...
+  </div>
+  
+  <div id="status"></div>
+  
+  <script>
+    let selectedTextNodes = [];
+    let apiKey = '';
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      loadApiKey();
+      checkSelection();
+      
+      // 监听选择变化
+      parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+    });
+    
+    // 监听来自插件主线程的消息
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      
+      switch (msg.type) {
+        case 'selection-changed':
+          selectedTextNodes = msg.nodes;
+          updateSelectionInfo();
+          break;
+        case 'generate-success':
+          showStatus('文案生成成功！', 'success');
+          hideLoading();
+          break;
+        case 'generate-error':
+          showStatus('生成失败：' + msg.error, 'error');
+          hideLoading();
+          break;
+        case 'api-key-saved':
+          showStatus('API Key 已保存', 'success');
+          break;
+      }
+    };
+    
+    function toggleConfig() {
+      const content = document.getElementById('config-content');
+      const arrow = document.getElementById('config-arrow');
+      
+      if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        arrow.textContent = '▼';
+      } else {
+        content.classList.add('expanded');
+        arrow.textContent = '▲';
+      }
+    }
+    
+    function saveApiKey() {
+      const key = document.getElementById('apiKey').value.trim();
+      if (!key) {
+        showStatus('请输入 API Key', 'error');
+        return;
+      }
+      
+      apiKey = key;
+      localStorage.setItem('figma-textgen-api-key', key);
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'save-api-key', 
+          apiKey: key 
+        } 
+      }, '*');
+    }
+    
+    function loadApiKey() {
+      const savedKey = localStorage.getItem('figma-textgen-api-key');
+      if (savedKey) {
+        apiKey = savedKey;
+        document.getElementById('apiKey').value = savedKey;
+      }
+    }
+    
+    function checkSelection() {
+      parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+    }
+    
+    function updateSelectionInfo() {
+      const info = document.getElementById('selection-info');
+      const generateBtn = document.getElementById('generateBtn');
+      
+      if (selectedTextNodes.length === 0) {
+        info.textContent = '请先在画布中选择文本图层';
+        info.className = 'selection-info';
+        generateBtn.disabled = true;
+      } else {
+        if (selectedTextNodes.length === 1) {
+          info.textContent = `已选择 1 个文本图层`;
+        } else {
+          info.textContent = `已选择 ${selectedTextNodes.length} 个文本图层，将为每个图层生成独立文案`;
+        }
+        info.className = 'selection-info';
+        generateBtn.disabled = !apiKey;
+      }
+    }
+    
+    function generateText() {
+      const prompt = document.getElementById('prompt').value.trim();
+      
+      if (!prompt) {
+        showStatus('请输入文案需求描述', 'error');
+        return;
+      }
+      
+      if (!apiKey) {
+        showStatus('请先配置 API Key', 'error');
+        return;
+      }
+      
+      if (selectedTextNodes.length === 0) {
+        showStatus('请先选择文本图层', 'error');
+        return;
+      }
+      
+      showLoading();
+      hideStatus();
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'generate-text',
+          prompt: prompt,
+          apiKey: apiKey,
+          nodeIds: selectedTextNodes.map(node => node.id)
+        } 
+      }, '*');
+    }
+    
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = `status ${type}`;
+      status.style.display = 'block';
+    }
+    
+    function hideStatus() {
+      const status = document.getElementById('status');
+      status.style.display = 'none';
+    }
+    
+    function showLoading() {
+      document.getElementById('loading').classList.add('show');
+      document.getElementById('generateBtn').disabled = true;
+    }
+    
+    function hideLoading() {
+      document.getElementById('loading').classList.remove('show');
+      document.getElementById('generateBtn').disabled = false;
+    }
+  </script>
+</body>
+</html>
