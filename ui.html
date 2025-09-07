@@ -351,32 +351,54 @@
           同步源Frame（将源Frame也包含在同步范围内）
         </label>
       </div>
+      
+      <div class="input-group">
+        <label>
+          <input type="checkbox" id="nameOnlyMode" style="margin-right: 8px;">
+          极速模式（仅同名匹配，跳过位置匹配）
+        </label>
+        <div class="status info" style="margin-top: 4px; font-size: 10px;">
+          大文件推荐使用，可大幅提升性能
+        </div>
+      </div>
+      
+      <div class="input-group">
+        <label>
+          <input type="checkbox" id="dryRunMode" style="margin-right: 8px;">
+          预览模式（仅显示匹配结果，不实际写入）
+        </label>
+        <div class="status info" style="margin-top: 4px; font-size: 10px;">
+          先预览匹配结果，确认无误后再执行实际同步
+        </div>
+      </div>
     </div>
     
     <div class="section">
       <div class="section-title">📋 同步策略</div>
       <div class="status info" style="font-size: 11px; line-height: 1.4;">
-        <strong>匹配规则：</strong><br>
+        <strong>高性能匹配规则：</strong><br>
         • 同名优先：文本节点 name 完全一致<br>
-        • 相对位置：计算归一化坐标的欧氏距离（最小阈值 0.15）<br>
-        • 源Frame优先：以用户选择的源Frame的文本为准<br>
-        • 空值处理：源Frame为空时使用第一个非空候选
+        • 空间网格：使用网格索引加速位置匹配（避免N×M全量计算）<br>
+        • 批量处理：全局字体去重加载，分批写入避免阻塞<br>
+        • 智能跳过：内容相同节点直接跳过，减少不必要操作<br>
+        • 源Frame优先：以用户选择的源Frame的文本为准
       </div>
     </div>
     
     <div class="section">
-      <div class="section-title">🔍 调试信息</div>
+      <div class="section-title">🔍 性能优化</div>
       <div class="status info" style="font-size: 10px; line-height: 1.3;">
-        <strong>常见问题：</strong><br>
-        • 锁定节点：无法修改被锁定的文本节点<br>
-        • 组件实例：组件内的文本节点无法直接修改<br>
-        • 位置偏差：文本节点位置差异过大，无法匹配<br>
-        • 名称不同：文本节点名称不一致且位置不匹配<br>
+        <strong>性能提升：</strong><br>
+        • 空间网格索引：避免N×M全量距离计算<br>
+        • 全局字体去重：每种字体只加载一次<br>
+        • 分批写入：避免UI线程阻塞<br>
+        • 智能跳过：内容相同节点直接跳过<br>
+        • 极速模式：仅同名匹配，大幅提升速度<br>
         <br>
-        <strong>解决方案：</strong><br>
-        • 解锁节点：在图层面板中解锁相关节点<br>
-        • 调整阈值：增大匹配阈值（如 0.2）提高匹配率<br>
-        • 检查名称：确保对应文本节点名称一致
+        <strong>使用建议：</strong><br>
+        • 大文件：启用"极速模式"和"预览模式"<br>
+        • 复杂结构：先预览再执行，避免误操作<br>
+        • 性能问题：检查控制台日志获取详细信息
       </div>
     </div>
     
@@ -444,7 +466,13 @@
           }
           break;
         case 'sync-summary':
-          let summaryMessage = `同步完成：匹配 ${msg.matchCount} 处，成功写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`;
+          let summaryMessage;
+          if (msg.dryRun) {
+            summaryMessage = `预览完成：匹配 ${msg.matchCount} 处，将写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`;
+          } else {
+            summaryMessage = `同步完成：匹配 ${msg.matchCount} 处，成功写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`;
+          }
+          
           if (msg.lockedCount > 0 || msg.componentCount > 0 || msg.skippedCount > 0) {
             const skipDetails = [];
             if (msg.lockedCount > 0) skipDetails.push(`锁定 ${msg.lockedCount}`);
@@ -452,7 +480,8 @@
             if (msg.skippedCount > 0) skipDetails.push(`其他 ${msg.skippedCount}`);
             summaryMessage += `，跳过 ${skipDetails.join('、')} 个`;
           }
-          showStatus(summaryMessage, 'success');
+          
+          showStatus(summaryMessage, msg.dryRun ? 'info' : 'success');
           hideLoading();
           break;
         case 'sync-error':
@@ -572,6 +601,8 @@
       
       const threshold = parseFloat(document.getElementById('threshold').value) || 0.08;
       const includeSourceFrame = document.getElementById('includeSourceFrame').checked;
+      const nameOnlyMode = document.getElementById('nameOnlyMode').checked;
+      const dryRunMode = document.getElementById('dryRunMode').checked;
       
       showLoading();
       hideStatus();
@@ -582,7 +613,13 @@
           frameIds: selectedFrames.map(frame => frame.id),
           sourceFrameId: sourceFrameId,
           threshold: threshold,
-          includeSourceFrame: includeSourceFrame
+          includeSourceFrame: includeSourceFrame,
+          options: {
+            nameOnly: nameOnlyMode,
+            dryRun: dryRunMode,
+            cellSize: 0.06,
+            batchSize: 100
+          }
         } 
       }, '*');
     }
