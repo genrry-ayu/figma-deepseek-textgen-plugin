@@ -207,6 +207,54 @@
     .hidden {
       display: none;
     }
+    
+    /* 选项卡样式 */
+    .tab-nav {
+      display: flex;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    
+    .tab-button {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 12px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    
+    .tab-button:hover {
+      color: #0066cc;
+      background: #f8f9fa;
+    }
+    
+    .tab-button.active {
+      color: #0066cc;
+      border-bottom-color: #0066cc;
+      background: #f0f8ff;
+    }
+    
+    .tab-icon {
+      font-size: 14px;
+    }
+    
+    /* 内容区域 */
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -215,41 +263,97 @@
     <h1>文案生成助手</h1>
   </div>
   
-  <div class="config-section">
-    <div class="config-toggle" onclick="toggleConfig()">
-      <span class="section-title">🔑 API 配置</span>
-      <span id="config-arrow">▼</span>
+  <!-- 选项卡导航 -->
+  <div class="tab-nav">
+    <button class="tab-button active" id="generateTab" onclick="switchTab('generate')">
+      <span class="tab-icon">✍️</span>
+      生成文案
+    </button>
+    <button class="tab-button" id="syncTab" onclick="switchTab('sync')">
+      <span class="tab-icon">🔄</span>
+      多帧同步
+    </button>
+  </div>
+  
+  <!-- 生成文案选项卡内容 -->
+  <div class="tab-content active" id="generateContent">
+    <div class="config-section">
+      <div class="config-toggle" onclick="toggleConfig()">
+        <span class="section-title">🔑 API 配置</span>
+        <span id="config-arrow">▼</span>
+      </div>
+      <div class="config-content" id="config-content">
+        <div class="input-group">
+          <label for="apiKey">API Key:</label>
+          <input type="password" id="apiKey" placeholder="请输入您的 DeepSeek API Key">
+        </div>
+        <button class="button secondary" onclick="saveApiKey()">保存配置</button>
+      </div>
     </div>
-    <div class="config-content" id="config-content">
+    
+    <div class="section">
+      <div class="section-title">📌 选择状态</div>
+      <div class="selection-info" id="selection-info">
+        请先在画布中选择文本图层
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">✍️ 文案生成</div>
       <div class="input-group">
-        <label for="apiKey">API Key:</label>
-        <input type="password" id="apiKey" placeholder="请输入您的 DeepSeek API Key">
+        <label for="prompt">文案需求描述 (Prompt):</label>
+        <textarea id="prompt" placeholder="例如：生成简短的电商按钮文案，风格要简洁有力"></textarea>
+        <div class="status info" style="margin-top: 8px; font-size: 10px;">
+          💡 提示：使用 DeepSeek API 生成高质量中文文案<br>
+          ⚡ 批量生成：一次API调用生成所有文案，大幅提升性能<br>
+          💾 自动保存：API Key 会自动保存到本地，无需重复输入<br>
+          🎯 推荐提示词：快递单号、公司名称、产品名称、按钮文案、标题文案<br>
+          📋 参考格式：输入"参考：P0\P1"可指定输出格式，数字会自动递增
+        </div>
       </div>
-      <button class="button secondary" onclick="saveApiKey()">保存配置</button>
+      <button class="button" id="generateBtn" onclick="generateText()" disabled>生成文案</button>
     </div>
   </div>
   
-  <div class="section">
-    <div class="section-title">📌 选择状态</div>
-    <div class="selection-info" id="selection-info">
-      请先在画布中选择文本图层
-    </div>
-  </div>
-  
-  <div class="section">
-    <div class="section-title">✍️ 文案生成</div>
-    <div class="input-group">
-      <label for="prompt">文案需求描述 (Prompt):</label>
-      <textarea id="prompt" placeholder="例如：生成简短的电商按钮文案，风格要简洁有力"></textarea>
-      <div class="status info" style="margin-top: 8px; font-size: 10px;">
-        💡 提示：使用 DeepSeek API 生成高质量中文文案<br>
-        ⚡ 批量生成：一次API调用生成所有文案，大幅提升性能<br>
-        💾 自动保存：API Key 会自动保存到本地，无需重复输入<br>
-        🎯 推荐提示词：快递单号、公司名称、产品名称、按钮文案、标题文案<br>
-        📋 参考格式：输入"参考：P0\P1"可指定输出格式，数字会自动递增
+  <!-- 多帧同步选项卡内容 -->
+  <div class="tab-content" id="syncContent">
+    <div class="section">
+      <div class="section-title">🔄 多帧同步</div>
+      <div class="selection-info" id="frame-selection-info">
+        请先在画布中选择至少2个Frame
       </div>
     </div>
-    <button class="button" id="generateBtn" onclick="generateText()" disabled>生成文案</button>
+    
+    <div class="section">
+      <div class="section-title">⚙️ 同步设置</div>
+      <div class="input-group">
+        <label for="threshold">匹配阈值:</label>
+        <input type="number" id="threshold" value="0.08" min="0.01" max="0.5" step="0.01">
+        <div class="status info" style="margin-top: 4px; font-size: 10px;">
+          默认 0.08（短边 8%），超过此阈值视为不匹配
+        </div>
+      </div>
+      
+      <div class="input-group">
+        <label>
+          <input type="checkbox" id="includeBaseFrame" style="margin-right: 8px;">
+          同步基准帧（以第一个Frame为准）
+        </label>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">📋 同步策略</div>
+      <div class="status info" style="font-size: 11px; line-height: 1.4;">
+        <strong>匹配规则：</strong><br>
+        • 同名优先：文本节点 name 完全一致<br>
+        • 相对位置：计算归一化坐标的欧氏距离<br>
+        • 基准帧优先：以第一个选中Frame的文本为准<br>
+        • 空值处理：基准帧为空时使用第一个非空候选
+      </div>
+    </div>
+    
+    <button class="button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
   </div>
   
   <div class="loading" id="loading">
@@ -261,7 +365,9 @@
   
   <script>
     let selectedTextNodes = [];
+    let selectedFrames = [];
     let apiKey = '';
+    let currentTab = 'generate';
     
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
@@ -281,7 +387,9 @@
       switch (msg.type) {
         case 'selection-changed':
           selectedTextNodes = msg.nodes;
+          selectedFrames = msg.frames || [];
           updateSelectionInfo();
+          updateFrameSelectionInfo();
           break;
         case 'generate-success':
           showStatus('文案生成成功！', 'success');
@@ -308,8 +416,80 @@
             showStatus('未找到保存的 API Key，请手动输入', 'info');
           }
           break;
+        case 'sync-summary':
+          showStatus(`同步完成：匹配 ${msg.matchCount} 处，成功写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`, 'success');
+          hideLoading();
+          break;
+        case 'sync-error':
+          showStatus('同步失败：' + msg.error, 'error');
+          hideLoading();
+          break;
       }
     };
+    
+    // 选项卡切换
+    function switchTab(tabName) {
+      currentTab = tabName;
+      
+      // 更新选项卡按钮状态
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(tabName + 'Tab').classList.add('active');
+      
+      // 更新内容显示
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(tabName + 'Content').classList.add('active');
+      
+      // 根据选项卡更新选择检查
+      if (tabName === 'generate') {
+        checkSelection();
+      } else if (tabName === 'sync') {
+        checkFrameSelection();
+      }
+    }
+    
+    // 检查Frame选择
+    function checkFrameSelection() {
+      parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+    }
+    
+    // 更新Frame选择信息
+    function updateFrameSelectionInfo() {
+      const info = document.getElementById('frame-selection-info');
+      const syncBtn = document.getElementById('syncBtn');
+      
+      if (selectedFrames.length < 2) {
+        info.textContent = '请先在画布中选择至少2个Frame';
+        info.className = 'selection-info';
+        syncBtn.disabled = true;
+      } else {
+        info.textContent = `已选择 ${selectedFrames.length} 个Frame，可以开始同步`;
+        info.className = 'selection-info';
+        syncBtn.disabled = false;
+      }
+    }
+    
+    // 执行多帧同步
+    function syncFrames() {
+      if (selectedFrames.length < 2) {
+        showStatus('请先选择至少2个Frame', 'error');
+        return;
+      }
+      
+      const threshold = parseFloat(document.getElementById('threshold').value) || 0.08;
+      const includeBaseFrame = document.getElementById('includeBaseFrame').checked;
+      
+      showLoading();
+      hideStatus();
+      
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'sync-frames',
+          frameIds: selectedFrames.map(frame => frame.id),
+          threshold: threshold,
+          includeBaseFrame: includeBaseFrame
+        } 
+      }, '*');
+    }
     
     function toggleConfig() {
       const content = document.getElementById('config-content');

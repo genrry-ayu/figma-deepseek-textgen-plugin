@@ -28,6 +28,9 @@ figma.ui.onmessage = async (msg) => {
       case 'load-api-key':
         await loadApiKey();
         break;
+      case 'sync-frames':
+        await syncFrames(msg.frameIds, msg.threshold, msg.includeBaseFrame);
+        break;
     }
   } catch (error) {
     console.error('插件错误:', error);
@@ -42,6 +45,7 @@ figma.ui.onmessage = async (msg) => {
 function handleSelectionChange() {
   const selection = figma.currentPage.selection;
   selectedTextNodes = selection.filter(node => node.type === 'TEXT');
+  const selectedFrames = selection.filter(node => node.type === 'FRAME');
   
   // 发送选择信息到 UI
   figma.ui.postMessage({ 
@@ -50,6 +54,12 @@ function handleSelectionChange() {
       id: node.id,
       name: node.name,
       characters: node.characters
+    })),
+    frames: selectedFrames.map(frame => ({
+      id: frame.id,
+      name: frame.name,
+      width: frame.width,
+      height: frame.height
     }))
   });
 }
@@ -517,6 +527,233 @@ async function loadApiKey() {
       error: error.message 
     });
   }
+}
+
+// 多帧同步功能
+async function syncFrames(frameIds, threshold = 0.08, includeBaseFrame = false) {
+  try {
+    if (frameIds.length < 2) {
+      throw new Error('至少需要选择2个Frame');
+    }
+
+    // 获取所有Frame节点
+    const frames = frameIds
+      .map(id => figma.getNodeById(id))
+      .filter(node => node && node.type === 'FRAME');
+
+    if (frames.length < 2) {
+      throw new Error('未找到有效的Frame节点');
+    }
+
+    // 检查Frame尺寸差异
+    const baseFrame = frames[0];
+    const sizeWarnings = [];
+    for (let i = 1; i < frames.length; i++) {
+      const frame = frames[i];
+      const widthDiff = Math.abs(frame.width - baseFrame.width) / baseFrame.width;
+      const heightDiff = Math.abs(frame.height - baseFrame.height) / baseFrame.height;
+      
+      if (widthDiff > 0.25 || heightDiff > 0.25) {
+        sizeWarnings.push(frame.name);
+      }
+    }
+
+    if (sizeWarnings.length > 0) {
+      console.warn('Frame尺寸差异较大，匹配精度可能受影响:', sizeWarnings);
+    }
+
+    // 获取基准帧的所有文本节点
+    const baseTextNodes = getTextNodesInFrame(baseFrame);
+    
+    let matchCount = 0;
+    let replaceCount = 0;
+    let unmatchCount = 0;
+    let skippedCount = 0;
+
+    // 遍历其他Frame进行同步
+    for (let i = includeBaseFrame ? 0 : 1; i < frames.length; i++) {
+      const targetFrame = frames[i];
+      const targetTextNodes = getTextNodesInFrame(targetFrame);
+      
+      // 为基准帧的每个文本节点找到最佳匹配
+      for (const baseTextNode of baseTextNodes) {
+        const bestMatch = findBestTextMatch(baseTextNode, targetTextNodes, threshold);
+        
+        if (bestMatch) {
+          matchCount++;
+          
+          // 检查是否可以写入
+          if (canWriteToNode(bestMatch.node)) {
+            try {
+              // 加载字体
+              await loadFontsIfNeeded([bestMatch.node]);
+              
+              // 确定要写入的内容
+              let contentToWrite = baseTextNode.characters;
+              if (!contentToWrite) {
+                // 基准帧为空时，使用第一个非空候选
+                const nonEmptyCandidates = targetTextNodes
+                  .filter(node => node.characters && node.characters.trim())
+                  .map(node => node.characters);
+                if (nonEmptyCandidates.length > 0) {
+                  contentToWrite = nonEmptyCandidates[0];
+                }
+              }
+              
+              if (contentToWrite) {
+                bestMatch.node.characters = contentToWrite;
+                replaceCount++;
+              } else {
+                unmatchCount++;
+              }
+            } catch (error) {
+              console.warn(`写入失败: ${bestMatch.node.name}`, error);
+              skippedCount++;
+            }
+          } else {
+            skippedCount++;
+          }
+        } else {
+          unmatchCount++;
+        }
+      }
+    }
+
+    // 发送同步结果
+    figma.ui.postMessage({
+      type: 'sync-summary',
+      matchCount: matchCount,
+      replaceCount: replaceCount,
+      unmatchCount: unmatchCount,
+      skippedCount: skippedCount
+    });
+
+    // 显示通知
+    const message = `匹配 ${matchCount} 处，成功写入 ${replaceCount}，未匹配 ${unmatchCount}`;
+    if (skippedCount > 0) {
+      figma.notify(`${message}，跳过 ${skippedCount} 个锁定/组件节点`);
+    } else {
+      figma.notify(message);
+    }
+
+  } catch (error) {
+    console.error('多帧同步失败:', error);
+    figma.ui.postMessage({
+      type: 'sync-error',
+      error: error.message
+    });
+  }
+}
+
+// 获取Frame内的所有文本节点
+function getTextNodesInFrame(frame) {
+  const textNodes = [];
+  
+  function traverse(node) {
+    if (node.type === 'TEXT') {
+      textNodes.push(node);
+    } else if (node.children) {
+      for (const child of node.children) {
+        traverse(child);
+      }
+    }
+  }
+  
+  traverse(frame);
+  return textNodes;
+}
+
+// 找到最佳文本匹配
+function findBestTextMatch(baseTextNode, targetTextNodes, threshold) {
+  let bestMatch = null;
+  let bestScore = Infinity;
+  
+  for (const targetNode of targetTextNodes) {
+    let score = Infinity;
+    
+    // 1. 同名优先
+    if (baseTextNode.name === targetNode.name) {
+      score = 0; // 同名匹配优先级最高
+    } else {
+      // 2. 相对位置匹配
+      const baseFrame = getParentFrame(baseTextNode);
+      const targetFrame = getParentFrame(targetNode);
+      
+      if (baseFrame && targetFrame) {
+        const basePos = getNormalizedPosition(baseTextNode, baseFrame);
+        const targetPos = getNormalizedPosition(targetNode, targetFrame);
+        
+        const distance = Math.sqrt(
+          Math.pow(basePos.x - targetPos.x, 2) + 
+          Math.pow(basePos.y - targetPos.y, 2)
+        );
+        
+        if (distance <= threshold) {
+          score = distance; // 距离越小，分数越低（优先级越高）
+        }
+      }
+    }
+    
+    if (score < bestScore) {
+      bestScore = score;
+      bestMatch = {
+        node: targetNode,
+        score: score,
+        method: score === 0 ? 'name' : 'position'
+      };
+    }
+  }
+  
+  return bestMatch;
+}
+
+// 获取节点的父Frame
+function getParentFrame(node) {
+  let current = node.parent;
+  while (current) {
+    if (current.type === 'FRAME') {
+      return current;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+// 获取归一化位置
+function getNormalizedPosition(textNode, frame) {
+  const nodeCenter = {
+    x: textNode.x + textNode.width / 2,
+    y: textNode.y + textNode.height / 2
+  };
+  
+  return {
+    x: nodeCenter.x / frame.width,
+    y: nodeCenter.y / frame.height
+  };
+}
+
+// 检查是否可以写入节点
+function canWriteToNode(node) {
+  // 检查是否被锁定
+  if (node.locked) {
+    return false;
+  }
+  
+  // 检查是否是组件实例
+  if (node.type === 'INSTANCE') {
+    return false;
+  }
+  
+  // 检查父节点是否被锁定
+  let current = node.parent;
+  while (current) {
+    if (current.locked) {
+      return false;
+    }
+    current = current.parent;
+  }
+  
+  return true;
 }
 
 // 初始化时检查选择和加载 API Key
