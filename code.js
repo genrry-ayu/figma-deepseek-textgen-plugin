@@ -16,17 +16,20 @@ let selectedTextNodes = [];
 let isSyncCancelled = false;
 
 // 发送进度更新
-function updateProgress(percentage, text) {
+function updateProgress(percentage, text, details) {
   figma.ui.postMessage({
     type: 'sync-progress',
     percentage: percentage,
-    text: text
+    text: text,
+    details: details
   });
 }
 
 // 监听来自 UI 的消息
 figma.ui.onmessage = async (msg) => {
   try {
+    console.log('收到消息:', msg.type, msg);
+    
     switch (msg.type) {
       case 'get-selection':
         handleSelectionChange();
@@ -43,8 +46,37 @@ figma.ui.onmessage = async (msg) => {
       case 'sync-frames':
         isSyncCancelled = false;
         console.log('收到同步请求，开始处理...');
+        console.log('消息内容:', msg);
+        
         try {
-          await syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+          // 立即发送进度更新，确保UI响应
+          updateProgress(1, '收到同步请求...');
+          
+          // 设置超时机制，防止卡住
+          const timeoutPromise = new Promise(function(_, reject) {
+            setTimeout(function() {
+              reject(new Error('同步超时，请重试'));
+            }, 30000); // 30秒超时
+          });
+          
+          // 检查是否使用高性能位置键算法
+          if (msg.options && msg.options.usePositionKey) {
+            console.log('使用高性能位置键算法');
+            console.log('调用参数:', {
+              frameIds: msg.frameIds,
+              sourceFrameId: msg.sourceFrameId,
+              threshold: msg.threshold,
+              includeSourceFrame: msg.includeSourceFrame,
+              options: msg.options
+            });
+            
+            const syncPromise = syncByPositionKey(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+            await Promise.race([syncPromise, timeoutPromise]);
+          } else {
+            console.log('使用简化同步算法');
+            const syncPromise = syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+            await Promise.race([syncPromise, timeoutPromise]);
+          }
         } catch (error) {
           console.error('同步过程中发生错误:', error);
           figma.ui.postMessage({
@@ -600,6 +632,564 @@ async function loadApiKey() {
   }
 }
 
+// ========== 高性能位置键同步算法 ==========
+
+// 基础工具函数
+const sleep = function(ms) {
+  if (ms === undefined) ms = 0;
+  return new Promise(function(resolve) {
+    setTimeout(resolve, ms);
+  });
+};
+
+const dist = function(a, b) {
+  return Math.hypot(a.nx - b.nx, a.ny - b.ny);
+};
+
+// 矩阵变换工具
+function apply(m, x, y) {
+  const a = m[0][0], c = m[0][1], e = m[0][2];
+  const b = m[1][0], d = m[1][1], f = m[1][2];
+  return { x: a * x + c * y + e, y: b * x + d * y + f };
+}
+
+function invert(m) {
+  const a = m[0][0], c = m[0][1], e = m[0][2];
+  const b = m[1][0], d = m[1][1], f = m[1][2];
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-9) throw new Error('non-invertible');
+  const ia = d / det, ic = -c / det, ib = -b / det, id = a / det;
+  const ie = -(ia * e + ic * f), ifv = -(ib * e + id * f);
+  return [[ia, ic, ie], [ib, id, ifv]];
+}
+
+function centerInFrame(frame, node) {
+  const abs = node.absoluteTransform;
+  const ctr = apply(abs, node.width / 2, node.height / 2);
+  const inv = invert(frame.absoluteTransform);
+  return apply(inv, ctr.x, ctr.y);
+}
+
+function norm(frame, p) {
+  return { nx: p.x / frame.width, ny: p.y / frame.height };
+}
+
+// 收集文本节点（优化版本）
+function collectTexts(frame) {
+  try {
+    // 先尝试使用递归方式，更稳定
+    return getTextNodesInFrameRecursive(frame);
+  } catch (error) {
+    console.warn('递归方式失败，尝试findAllWithCriteria:', error);
+    try {
+      const nodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+      return nodes.filter(function(n) {
+        return n.visible !== false;
+      });
+    } catch (error2) {
+      console.error('所有方式都失败:', error2);
+      return [];
+    }
+  }
+}
+
+// 位置键索引类型
+function kPos(ix, iy, isx, isy) {
+  if (isx === undefined) {
+    return ix + ',' + iy;
+  } else {
+    return ix + ',' + iy + ',' + isx + ',' + isy;
+  }
+}
+
+// 建立位置键索引
+function indexFrameByPos(frame, opts) {
+  if (opts === undefined) opts = {};
+  const cell = opts.cell !== undefined ? opts.cell : 0.02;   // 2% 网格
+  const useSize = !!opts.useSize;
+  const cellSize = opts.cellSize !== undefined ? opts.cellSize : 0.04; // 尺寸格
+  
+  const texts = collectTexts(frame);
+  const infos = [];
+  
+  for (let i = 0; i < texts.length; i++) {
+    const t = texts[i];
+    const p = norm(frame, centerInFrame(frame, t));
+    let size;
+    if (useSize) {
+      size = { nw: t.width / frame.width, nh: t.height / frame.height };
+    }
+    infos.push({
+      node: t,
+      pos: p,
+      size: size,
+      nameKey: (t.name || '').trim()
+    });
+  }
+  
+  const byName = new Map();
+  const byBin = new Map();
+  
+  const push = function(map, key, v) {
+    const arr = map.get(key);
+    if (arr) {
+      arr.push(v);
+    } else {
+      map.set(key, [v]);
+    }
+  };
+  
+  for (let i = 0; i < infos.length; i++) {
+    const it = infos[i];
+    if (it.nameKey) {
+      if (!byName.has(it.nameKey)) byName.set(it.nameKey, []);
+      byName.get(it.nameKey).push(it);
+    }
+    
+    const ix = Math.floor(it.pos.nx / cell);
+    const iy = Math.floor(it.pos.ny / cell);
+    let key;
+    
+    if (useSize && it.size) {
+      const isx = Math.floor(it.size.nw / cellSize);
+      const isy = Math.floor(it.size.nh / cellSize);
+      key = kPos(ix, iy, isx, isy);
+    } else {
+      key = kPos(ix, iy);
+    }
+    
+    push(byBin, key, it);
+  }
+  
+  return {
+    infos: infos,
+    index: {
+      byName: byName,
+      byBin: byBin,
+      used: new Set(),
+      cell: cell,
+      cellSize: useSize ? cellSize : undefined
+    }
+  };
+}
+
+// 位置键查询
+function lookupByPosKey(pivot, idx, tol) {
+  if (tol === undefined) tol = 0.06;
+  
+  const ix = Math.floor(pivot.pos.nx / idx.cell);
+  const iy = Math.floor(pivot.pos.ny / idx.cell);
+  const grids = [];
+  
+  if (idx.cellSize && pivot.size) {
+    const isx = Math.floor(pivot.size.nw / idx.cellSize);
+    const isy = Math.floor(pivot.size.nh / idx.cellSize);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const key = kPos(ix + dx, iy + dy, isx, isy);
+        grids.push(key);
+      }
+    }
+  } else {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        grids.push(kPos(ix + dx, iy + dy));
+      }
+    }
+  }
+  
+  let best = null;
+  let bestD = Infinity;
+  
+  for (let i = 0; i < grids.length; i++) {
+    const key = grids[i];
+    const bucket = idx.byBin.get(key);
+    if (!bucket) continue;
+    
+    for (let j = 0; j < bucket.length; j++) {
+      const cand = bucket[j];
+      if (idx.used.has(cand.node.id)) continue;
+      
+      const d = dist(pivot.pos, cand.pos);
+      if (d < bestD) {
+        bestD = d;
+        best = cand;
+      }
+    }
+  }
+  
+  return (best && bestD <= tol) ? best : null;
+}
+
+// 字体收集与加载
+function fKey(f) {
+  return f.family + '__' + f.style;
+}
+
+async function collectFonts(nodes) {
+  const fonts = new Map();
+  
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.characters.length === 0) {
+      if (n.fontName !== figma.mixed) {
+        const f = n.fontName;
+        fonts.set(fKey(f), f);
+      }
+      continue;
+    }
+    
+    const segs = n.getStyledTextSegments && n.getStyledTextSegments(['fontName']);
+    if (segs && segs.length) {
+      for (let j = 0; j < segs.length; j++) {
+        fonts.set(fKey(segs[j].fontName), segs[j].fontName);
+      }
+    } else {
+      const L = n.characters.length;
+      const pick = new Set([0, Math.floor(L / 2), L - 1].filter(function(i) {
+        return i >= 0;
+      }));
+      
+      const pickArray = Array.from(pick);
+      for (let k = 0; k < pickArray.length; k++) {
+        const idx = pickArray[k];
+        const f = n.getRangeFontName(idx, idx + 1);
+        fonts.set(fKey(f), f);
+      }
+    }
+  }
+  
+  return fonts;
+}
+
+async function loadFontSet(fonts) {
+  const fontArray = Array.from(fonts.values());
+  const promises = fontArray.map(function(f) {
+    return figma.loadFontAsync(f);
+  });
+  await Promise.all(promises);
+}
+
+// 统一内容规则
+function chooseUnified(pivot, cands) {
+  const pv = (pivot.characters || '').trim();
+  if (pv) return pivot.characters;
+  
+  for (let i = 0; i < cands.length; i++) {
+    const n = cands[i];
+    const v = (n.characters || '').trim();
+    if (v) return n.characters;
+  }
+  
+  return '';
+}
+
+// 简化的位置键同步主函数
+async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSourceFrame, options) {
+  try {
+    console.log('开始简化位置键同步，参数:', { frameIds, sourceFrameId, threshold, includeSourceFrame });
+    
+    // 立即更新进度，确保UI响应
+    updateProgress(5, '开始同步...');
+    
+    // 使用固定的优化参数
+    const cell = 0.02;      // 2% 网格
+    const tol = 0.06;       // 6% 距离阈值
+    const useSize = true;   // 叠加尺寸维度
+    const nameFirst = true; // 同名优先
+    const nameOnly = false; // 不使用仅同名模式
+    const posOnly = false;  // 不使用仅位置键模式
+    const batch = 100;      // 写入批大小
+
+    if (!frameIds || frameIds.length < 2) {
+      throw new Error('至少需要选择2个Frame');
+    }
+
+    if (!sourceFrameId) {
+      throw new Error('请选择源Frame');
+    }
+
+    updateProgress(10, '获取Frame节点...');
+    console.log('开始获取Frame节点，frameIds:', frameIds);
+    
+    // 添加延迟，确保UI更新
+    await new Promise(function(resolve) {
+      setTimeout(resolve, 100);
+    });
+    
+    // 立即更新进度，确保UI响应
+    updateProgress(15, '正在处理...');
+    
+    // 获取所有Frame节点
+    const frames = [];
+    for (let i = 0; i < frameIds.length; i++) {
+      const id = frameIds[i];
+      console.log(`获取节点 ${i + 1}/${frameIds.length}: ${id}`);
+      
+      try {
+        const node = figma.getNodeById(id);
+        console.log(`节点 ${id} 获取结果:`, node ? node.type : 'null');
+        
+        if (node && node.type === 'FRAME') {
+          frames.push(node);
+          console.log(`成功添加Frame: ${node.name}`);
+        } else {
+          console.warn(`节点 ${id} 不是Frame类型或不存在`);
+        }
+      } catch (error) {
+        console.error(`获取节点 ${id} 时出错:`, error);
+      }
+      
+      // 每处理一个节点就更新进度
+      const progress = 15 + Math.floor((i + 1) / frameIds.length * 10);
+      updateProgress(progress, `获取Frame节点... ${i + 1}/${frameIds.length}`);
+    }
+    
+    console.log(`总共获取到 ${frames.length} 个有效Frame节点`);
+
+    if (frames.length < 2) {
+      throw new Error('未找到有效的Frame节点');
+    }
+
+    // 获取源Frame
+    let sourceFrame = null;
+    for (let i = 0; i < frames.length; i++) {
+      if (frames[i].id === sourceFrameId) {
+        sourceFrame = frames[i];
+        break;
+      }
+    }
+    
+    if (!sourceFrame) {
+      throw new Error('未找到源Frame');
+    }
+
+    console.log(`开始位置键同步: ${frames.length} 个Frame, 源Frame: ${sourceFrame.name}`);
+    
+    updateProgress(25, '构建文本索引...');
+    
+    // 添加延迟，确保UI更新
+    await new Promise(function(resolve) {
+      setTimeout(resolve, 100);
+    });
+    
+    // 构建源Frame索引
+    updateProgress(30, '构建源Frame索引...');
+    
+    try {
+      const pivotIndex = indexFrameByPos(sourceFrame, { cell: cell, useSize: useSize });
+      if (pivotIndex.infos.length === 0) {
+        figma.notify('源Frame中没有文本节点');
+        return;
+      }
+      
+      console.log(`源Frame "${sourceFrame.name}" 包含 ${pivotIndex.infos.length} 个文本节点`);
+      
+      // 添加延迟，确保UI更新
+      await new Promise(function(resolve) {
+        setTimeout(resolve, 100);
+      });
+      
+      updateProgress(40, '构建目标Frame索引...');
+      
+    } catch (error) {
+      console.error('构建源Frame索引失败:', error);
+      throw new Error('构建源Frame索引失败: ' + error.message);
+    }
+
+    // 构建目标Frame索引
+    const targetFrames = [];
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+      if (includeSourceFrame || frame.id !== sourceFrameId) {
+        targetFrames.push(frame);
+      }
+    }
+    
+    const targets = [];
+    for (let i = 0; i < targetFrames.length; i++) {
+      const frame = targetFrames[i];
+      console.log(`构建目标Frame索引: ${frame.name}`);
+      
+      try {
+        const targetIndex = indexFrameByPos(frame, { cell: cell, useSize: useSize });
+        targets.push({
+          frame: frame,
+          infos: targetIndex.infos,
+          index: targetIndex.index
+        });
+        console.log(`目标Frame "${frame.name}" 包含 ${targetIndex.infos.length} 个文本节点`);
+        
+        // 每处理一个目标Frame就更新进度
+        const progress = 40 + Math.floor((i + 1) / targetFrames.length * 20);
+        updateProgress(progress, `构建目标Frame索引... ${i + 1}/${targetFrames.length}`);
+        
+      } catch (error) {
+        console.error(`构建目标Frame "${frame.name}" 索引失败:`, error);
+        // 继续处理其他Frame
+      }
+    }
+    
+    updateProgress(60, '开始匹配...');
+    
+    // 添加延迟，确保UI更新
+    await new Promise(function(resolve) {
+      setTimeout(resolve, 100);
+    });
+
+    // 提示尺寸差异
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      const r = Math.min(t.frame.width / sourceFrame.width, t.frame.height / sourceFrame.height);
+      if (r < 0.8 || r > 1.25) {
+        figma.notify('提示：部分帧与源帧尺寸差异较大，匹配可能不准');
+        break;
+      }
+    }
+
+    let pairs = 0;
+    let writes = 0;
+    let miss = 0;
+    const pending = [];
+
+    // 匹配阶段
+    for (let i = 0; i < pivotIndex.infos.length; i++) {
+      if (isSyncCancelled) {
+        figma.ui.postMessage({ type: 'sync-cancelled' });
+        return;
+      }
+      
+      const pi = pivotIndex.infos[i];
+      const matched = [];
+      
+      // 减少进度更新频率，每10个节点更新一次
+      if (i % 10 === 0 || i === pivotIndex.infos.length - 1) {
+        const matchProgress = 60 + Math.floor((i / pivotIndex.infos.length) * 20);
+        updateProgress(matchProgress, `匹配进度 ${i + 1}/${pivotIndex.infos.length}`);
+      }
+
+      for (let j = 0; j < targets.length; j++) {
+        const t = targets[j];
+        let best = null;
+
+        // 同名优先匹配
+        if (!posOnly && nameFirst && pi.nameKey && t.index.byName.has(pi.nameKey)) {
+          const arr = t.index.byName.get(pi.nameKey).filter(function(x) {
+            return !t.index.used.has(x.node.id);
+          });
+          if (arr.length) {
+            let bestD = Infinity;
+            for (let k = 0; k < arr.length; k++) {
+              const cand = arr[k];
+              const d = dist(pi.pos, cand.pos);
+              if (d < bestD) {
+                bestD = d;
+                best = cand;
+              }
+            }
+            if (best && bestD > tol) best = null;
+          }
+        }
+
+        // 位置键匹配
+        if (!best && !nameOnly) {
+          best = lookupByPosKey(pi, t.index, tol);
+        }
+
+        if (best) {
+          t.index.used.add(best.node.id);
+          matched.push(best.node);
+          pairs++;
+        } else {
+          miss++;
+        }
+      }
+
+      if (matched.length === 0) continue;
+      
+      const unified = chooseUnified(pi.node, matched);
+      for (let k = 0; k < matched.length; k++) {
+        const n = matched[k];
+        if (n.characters !== unified) {
+          pending.push({ node: n, text: unified });
+        }
+      }
+    }
+
+    if (pending.length === 0) {
+      figma.notify('同步完成：匹配 ' + pairs + '，无需改动');
+      figma.ui.postMessage({
+        type: 'sync-summary',
+        matchCount: pairs,
+        replaceCount: 0,
+        unmatchCount: miss,
+        skippedCount: 0,
+        lockedCount: 0,
+        componentCount: 0
+      });
+      return;
+    }
+
+    updateProgress(80, '加载字体...');
+    
+    // 一次性加载字体
+    const fontSet = await collectFonts(pending.map(function(p) {
+      return p.node;
+    }));
+    await loadFontSet(fontSet);
+
+    updateProgress(90, '写入文本...');
+    
+    // 分批写入
+    for (let i = 0; i < pending.length; i += batch) {
+      if (isSyncCancelled) {
+        figma.ui.postMessage({ type: 'sync-cancelled' });
+        return;
+      }
+      
+      const chunk = pending.slice(i, i + batch);
+      for (let j = 0; j < chunk.length; j++) {
+        const w = chunk[j];
+        try {
+          w.node.characters = w.text;
+          writes++;
+        } catch (e) {
+          // 忽略单点失败
+        }
+      }
+      
+      // 更新写入进度
+      const writeProgress = 90 + Math.floor((i + batch) / pending.length * 10);
+      updateProgress(Math.min(writeProgress, 99), `写入进度 ${Math.min(i + batch, pending.length)}/${pending.length}`);
+      
+      await sleep(0);
+    }
+
+    updateProgress(100, '同步完成');
+    
+    const message = '同步完成：匹配 ' + pairs + '，写入 ' + writes + '，未匹配 ' + miss;
+    figma.notify(message);
+    console.log(message);
+
+    figma.ui.postMessage({
+      type: 'sync-summary',
+      matchCount: pairs,
+      replaceCount: writes,
+      unmatchCount: miss,
+      skippedCount: 0,
+      lockedCount: 0,
+      componentCount: 0
+    });
+
+  } catch (error) {
+    console.error('位置键同步失败:', error);
+    figma.ui.postMessage({
+      type: 'sync-error',
+      error: error.message
+    });
+  }
+}
+
 // 简化的多帧同步功能（测试版本）
 async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSourceFrame = false, options = {}) {
   try {
@@ -918,21 +1508,44 @@ function getTextNodesInFrame(frame) {
   }
 }
 
-// 递归方式收集文本节点（回退方案）
+// 递归方式收集文本节点（优化版本）
 function getTextNodesInFrameRecursive(frame) {
   const textNodes = [];
+  let nodeCount = 0;
+  const maxNodes = 1000; // 限制最大节点数，防止性能问题
   
   function traverse(node) {
-    if (node.type === 'TEXT') {
-      textNodes.push(node);
-    } else if (node.children) {
-      for (const child of node.children) {
-        traverse(child);
+    if (nodeCount >= maxNodes) {
+      console.warn('达到最大节点数限制，停止遍历');
+      return;
+    }
+    
+    try {
+      if (node.type === 'TEXT' && node.visible !== false) {
+        textNodes.push(node);
+        nodeCount++;
+      } else if (node.children && node.children.length > 0) {
+        // 限制子节点数量，防止深度遍历
+        const maxChildren = 50;
+        const childrenToProcess = node.children.slice(0, maxChildren);
+        
+        for (let i = 0; i < childrenToProcess.length; i++) {
+          traverse(childrenToProcess[i]);
+        }
       }
+    } catch (error) {
+      console.warn('遍历节点时出错:', error);
+      // 继续处理其他节点
     }
   }
   
-  traverse(frame);
+  try {
+    traverse(frame);
+    console.log(`递归收集到 ${textNodes.length} 个文本节点`);
+  } catch (error) {
+    console.error('递归遍历失败:', error);
+  }
+  
   return textNodes;
 }
 

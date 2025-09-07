@@ -142,30 +142,6 @@
       background: #e0e0e0;
     }
     
-    .status {
-      padding: 8px;
-      border-radius: 4px;
-      margin-bottom: 12px;
-      font-size: 11px;
-    }
-    
-    .status.info {
-      background: #e3f2fd;
-      color: #1976d2;
-      border: 1px solid #bbdefb;
-    }
-    
-    .status.error {
-      background: #ffebee;
-      color: #d32f2f;
-      border: 1px solid #ffcdd2;
-    }
-    
-    .status.success {
-      background: #e8f5e8;
-      color: #2e7d32;
-      border: 1px solid #c8e6c9;
-    }
     
     .selection-info {
       background: #f0f8ff;
@@ -177,66 +153,333 @@
       color: #0066cc;
     }
     
-    .loading {
-      display: none;
-      text-align: center;
-      padding: 16px;
-      color: #666;
-    }
     
-    .loading.show {
-      display: block;
-    }
-    
-    .spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid #f3f3f3;
-      border-top: 2px solid #0066cc;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-right: 8px;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
     
     .progress-container {
       padding: 15px;
       background: #f8f9fa;
       border-radius: 8px;
       margin: 10px 0;
+      border: 1px solid #e0e0e0;
+      /* 确保鼠标指针不被禁用 */
+      pointer-events: auto;
+      cursor: default;
     }
     
     .progress-bar {
       width: 100%;
-      height: 8px;
+      height: 10px;
       background-color: #e0e0e0;
-      border-radius: 4px;
+      border-radius: 5px;
       overflow: hidden;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      /* 确保进度条可以交互 */
+      pointer-events: auto;
     }
     
     .progress-fill {
       height: 100%;
-      background-color: #007AFF;
-      border-radius: 4px;
-      transition: width 0.3s ease;
+      background: linear-gradient(90deg, #007AFF, #5AC8FA);
+      border-radius: 5px;
+      transition: width 0.2s ease;
       width: 0%;
+      /* 添加动画效果 */
+      animation: progressPulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes progressPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
     }
     
     .progress-text {
-      font-size: 12px;
+      font-size: 13px;
+      color: #333;
+      text-align: center;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    
+    .progress-details {
+      font-size: 11px;
       color: #666;
       text-align: center;
+      margin-top: 5px;
     }
     
     .cancel-button {
       background-color: #ff4444 !important;
       color: white !important;
+    }
+    
+    /* 确保UI在同步过程中保持响应性 */
+    .container {
+      /* 防止界面卡顿 */
+      will-change: auto;
+      transform: translateZ(0);
+    }
+    
+    /* 进度条动画优化 */
+    .progress-fill {
+      /* 使用GPU加速 */
+      transform: translateZ(0);
+      will-change: width;
+    }
+    
+    /* 确保所有交互元素保持可用 */
+    button, input, select, label {
+      pointer-events: auto !important;
+      cursor: pointer !important;
+    }
+    
+    /* 同步过程中的特殊样式 */
+    .syncing {
+      /* 轻微的背景变化提示正在同步 */
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    
+    /* ========== 生成文案UI样式 ========== */
+    
+    /* API Key 配置区域 */
+    .api-config-section {
+      margin-bottom: 20px;
+    }
+    
+    .api-config-header {
+      margin-bottom: 4px;
+    }
+    
+    .api-config-title {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: #111111;
+    }
+    
+    .api-config-content {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    
+    .api-input-container {
+      flex: 1;
+      position: relative;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .api-input {
+      width: 100%;
+      height: 32px;
+      padding: 5px 8px;
+      border: 0.5px solid #dddddd;
+      border-radius: 4px;
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 22px;
+      color: #111111;
+      background: transparent;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    
+    .api-input::placeholder {
+      color: #cccccc;
+    }
+    
+    .api-input:focus {
+      border-color: #007AFF;
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
+    }
+    
+    .api-input:hover:not(:focus) {
+      border-color: #999999;
+    }
+    
+    .save-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 32px;
+      padding: 6px 10px;
+      border: 0.5px solid #999999;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    
+    .save-button:hover {
+      border-color: #007AFF;
+      background: rgba(0, 122, 255, 0.05);
+    }
+    
+    .save-button:active {
+      background: rgba(0, 122, 255, 0.1);
+    }
+    
+    .save-button:disabled {
+      border-color: #dddddd;
+      background: #f5f5f5;
+      cursor: not-allowed;
+    }
+    
+    .save-button:disabled .save-button-text {
+      color: #cccccc;
+    }
+    
+    .save-button-text {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: #111111;
+      white-space: nowrap;
+    }
+    
+    /* 选择状态区域 */
+    .selection-status-section {
+      margin-bottom: 20px;
+    }
+    
+    .selection-status-header {
+      margin-bottom: 4px;
+    }
+    
+    .selection-status-title {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: #111111;
+    }
+    
+    .selection-status-content {
+      margin-top: 4px;
+    }
+    
+    .selection-status-text {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: #999999;
+      white-space: nowrap;
+    }
+    
+    /* 文案生成区域 */
+    .prompt-section {
+      margin-bottom: 20px;
+    }
+    
+    .prompt-header {
+      margin-bottom: 4px;
+    }
+    
+    .prompt-title {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: #111111;
+    }
+    
+    .prompt-content {
+      margin-top: 4px;
+    }
+    
+    .prompt-input-container {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .prompt-input {
+      width: 100%;
+      height: 100px;
+      padding: 7px 8px;
+      border: 1px solid #dddddd;
+      border-radius: 8px;
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 22px;
+      color: #111111;
+      background: transparent;
+      outline: none;
+      resize: none;
+      transition: all 0.2s ease;
+    }
+    
+    .prompt-input::placeholder {
+      color: #cccccc;
+    }
+    
+    .prompt-input:focus {
+      border-color: #007AFF;
+      box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
+    }
+    
+    .prompt-input:hover:not(:focus) {
+      border-color: #999999;
+    }
+    
+    /* 生成按钮 */
+    .generate-button-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    
+    .generate-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 278px;
+      height: 32px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 4px;
+      background: #111111;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .generate-button:hover:not(:disabled) {
+      background: #333333;
+    }
+    
+    .generate-button:active:not(:disabled) {
+      background: #000000;
+    }
+    
+    .generate-button:disabled {
+      background: #dddddd;
+      cursor: not-allowed;
+    }
+    
+    .generate-button:disabled .generate-button-text {
+      color: #999999;
+    }
+    
+    .generate-button.loading {
+      background: #666666;
+      cursor: not-allowed;
+    }
+    
+    .generate-button.loading .generate-button-text {
+      color: #cccccc;
+    }
+    
+    .generate-button-text {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 22px;
+      color: white;
+      white-space: nowrap;
     }
     
     .cancel-button:hover {
@@ -249,46 +492,63 @@
     
     /* 选项卡样式 */
     .tab-nav {
-      display: flex;
-      margin-bottom: 16px;
-      border-bottom: 1px solid #e5e5e5;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 320px;
+      height: 40px;
+      border-bottom: 0.5px solid #dddddd;
     }
     
     .tab-button {
-      flex: 1;
-      background: none;
+      position: absolute;
+      top: 0;
+      height: 40px;
+      padding: 12px 20px;
       border: none;
-      padding: 12px 8px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #666;
+      background: none;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
+      transition: all 0.2s ease;
     }
     
-    .tab-button:hover {
-      color: #0066cc;
-      background: #f8f9fa;
+    .tab-button:first-child {
+      left: 0;
+      border-bottom: 3px solid #222222;
+    }
+    
+    .tab-button:last-child {
+      left: 80px;
+    }
+    
+    .tab-button:hover:not(.active) {
+      background: rgba(0, 0, 0, 0.02);
     }
     
     .tab-button.active {
-      color: #0066cc;
-      border-bottom-color: #0066cc;
-      background: #f0f8ff;
+      background: transparent;
     }
     
-    .tab-icon {
+    .tab-button-text {
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 14px;
+      font-weight: 600;
+      line-height: 22px;
+      color: #111111;
+      white-space: nowrap;
+    }
+    
+    .tab-button:not(.active) .tab-button-text {
+      color: #999999;
+      font-weight: 400;
     }
     
     /* 内容区域 */
     .tab-content {
       display: none;
+      position: absolute;
+      left: 20px;
+      top: 66px;
+      width: 278px;
     }
     
     .tab-content.active {
@@ -297,60 +557,61 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <span class="icon">✨</span>
-    <h1>文案生成助手</h1>
-  </div>
   
   <!-- 选项卡导航 -->
   <div class="tab-nav">
     <button class="tab-button active" id="generateTab" onclick="switchTab('generate')">
-      <span class="tab-icon">✍️</span>
-      生成文案
+      <span class="tab-button-text">生成文本</span>
     </button>
     <button class="tab-button" id="syncTab" onclick="switchTab('sync')">
-      <span class="tab-icon">🔄</span>
-      多帧同步
+      <span class="tab-button-text">多帧同步</span>
     </button>
   </div>
   
   <!-- 生成文案选项卡内容 -->
   <div class="tab-content active" id="generateContent">
-    <div class="config-section">
-      <div class="config-toggle" onclick="toggleConfig()">
-        <span class="section-title">🔑 API 配置</span>
-        <span id="config-arrow">▼</span>
+    <!-- API Key 配置区域 -->
+    <div class="api-config-section">
+      <div class="api-config-header">
+        <span class="api-config-title">API Key</span>
       </div>
-      <div class="config-content" id="config-content">
-        <div class="input-group">
-          <label for="apiKey">API Key:</label>
-          <input type="password" id="apiKey" placeholder="请输入您的 DeepSeek API Key">
+      <div class="api-config-content">
+        <div class="api-input-container">
+          <input type="password" id="apiKey" class="api-input" placeholder="***">
         </div>
-        <button class="button secondary" onclick="saveApiKey()">保存配置</button>
+        <button class="save-button" onclick="saveApiKey()">
+          <span class="save-button-text">保存</span>
+        </button>
       </div>
     </div>
     
-    <div class="section">
-      <div class="section-title">📌 选择状态</div>
-      <div class="selection-info" id="selection-info">
-        请先在画布中选择文本图层
+    <!-- 选择状态区域 -->
+    <div class="selection-status-section">
+      <div class="selection-status-header">
+        <span class="selection-status-title">选择状态</span>
+      </div>
+      <div class="selection-status-content">
+        <span class="selection-status-text" id="selection-info">已经选中 0 个文本</span>
       </div>
     </div>
     
-    <div class="section">
-      <div class="section-title">✍️ 文案生成</div>
-      <div class="input-group">
-        <label for="prompt">文案需求描述 (Prompt):</label>
-        <textarea id="prompt" placeholder="例如：生成简短的电商按钮文案，风格要简洁有力"></textarea>
-        <div class="status info" style="margin-top: 8px; font-size: 10px;">
-          💡 提示：使用 DeepSeek API 生成高质量中文文案<br>
-          ⚡ 批量生成：一次API调用生成所有文案，大幅提升性能<br>
-          💾 自动保存：API Key 会自动保存到本地，无需重复输入<br>
-          🎯 推荐提示词：快递单号、公司名称、产品名称、按钮文案、标题文案<br>
-          📋 参考格式：输入"参考：P0\P1"可指定输出格式，数字会自动递增
+    <!-- 文案生成区域 -->
+    <div class="prompt-section">
+      <div class="prompt-header">
+        <span class="prompt-title">文案生成 Prompt</span>
+      </div>
+      <div class="prompt-content">
+        <div class="prompt-input-container">
+          <textarea id="prompt" class="prompt-input" placeholder="例如：人名"></textarea>
         </div>
       </div>
-      <button class="button" id="generateBtn" onclick="generateText()" disabled>生成文案</button>
+    </div>
+    
+    <!-- 生成按钮 -->
+    <div class="generate-button-container">
+      <button class="generate-button" id="generateBtn" onclick="generateText()" disabled>
+        <span class="generate-button-text">生成文案</span>
+      </button>
     </div>
   </div>
   
@@ -387,77 +648,25 @@
       <div class="input-group">
         <label>
           <input type="checkbox" id="includeSourceFrame" style="margin-right: 8px;">
-          同步源Frame（将源Frame也包含在同步范围内）
+          同步源Frame
         </label>
-      </div>
-      
-      <div class="input-group">
-        <label>
-          <input type="checkbox" id="nameOnlyMode" style="margin-right: 8px;">
-          极速模式（仅同名匹配，跳过位置匹配）
-        </label>
-        <div class="status info" style="margin-top: 4px; font-size: 10px;">
-          大文件推荐使用，可大幅提升性能
-        </div>
-      </div>
-      
-      <div class="input-group">
-        <label>
-          <input type="checkbox" id="dryRunMode" style="margin-right: 8px;">
-          预览模式（仅显示匹配结果，不实际写入）
-        </label>
-        <div class="status info" style="margin-top: 4px; font-size: 10px;">
-          先预览匹配结果，确认无误后再执行实际同步
-        </div>
       </div>
     </div>
     
-    <div class="section">
-      <div class="section-title">📋 同步策略</div>
-      <div class="status info" style="font-size: 11px; line-height: 1.4;">
-        <strong>高性能匹配规则：</strong><br>
-        • 同名优先：文本节点 name 完全一致<br>
-        • 空间网格：使用网格索引加速位置匹配（避免N×M全量计算）<br>
-        • 批量处理：全局字体去重加载，分批写入避免阻塞<br>
-        • 智能跳过：内容相同节点直接跳过，减少不必要操作<br>
-        • 源Frame优先：以用户选择的源Frame的文本为准
-      </div>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">🔍 性能优化</div>
-      <div class="status info" style="font-size: 10px; line-height: 1.3;">
-        <strong>性能提升：</strong><br>
-        • 空间网格索引：避免N×M全量距离计算<br>
-        • 全局字体去重：每种字体只加载一次<br>
-        • 分批写入：避免UI线程阻塞<br>
-        • 智能跳过：内容相同节点直接跳过<br>
-        • 极速模式：仅同名匹配，大幅提升速度<br>
-        <br>
-        <strong>使用建议：</strong><br>
-        • 大文件：启用"极速模式"和"预览模式"<br>
-        • 复杂结构：先预览再执行，避免误操作<br>
-        • 性能问题：检查控制台日志获取详细信息
-      </div>
-    </div>
     
     <button class="button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
     <button class="button cancel-button" id="cancelBtn" onclick="cancelSync()" style="display: none; background-color: #ff4444; margin-top: 8px;">终止同步</button>
   </div>
   
-  <div class="loading" id="loading">
-    <div class="spinner"></div>
-    <span id="loading-text">正在生成文案...</span>
-  </div>
   
   <div class="progress-container" id="progressContainer" style="display: none;">
+    <div class="progress-text" id="progressText">准备中...</div>
     <div class="progress-bar">
       <div class="progress-fill" id="progressFill"></div>
     </div>
-    <div class="progress-text" id="progressText">准备中...</div>
+    <div class="progress-details" id="progressDetails">正在初始化...</div>
   </div>
   
-  <div id="status"></div>
   
   <script>
     let selectedTextNodes = [];
@@ -489,28 +698,31 @@
           updateFrameSelectionInfo();
           break;
         case 'generate-success':
-          showStatus('文案生成成功！', 'success');
-          hideLoading();
+          // 恢复按钮状态
+          const generateBtn = document.getElementById('generateBtn');
+          generateBtn.disabled = false;
+          generateBtn.classList.remove('loading');
+          generateBtn.querySelector('.generate-button-text').textContent = '生成文案';
           break;
         case 'generate-error':
-          showStatus('生成失败：' + msg.error, 'error');
-          hideLoading();
+          // 恢复按钮状态
+          const generateBtnError = document.getElementById('generateBtn');
+          generateBtnError.disabled = false;
+          generateBtnError.classList.remove('loading');
+          generateBtnError.querySelector('.generate-button-text').textContent = '生成文案';
           break;
         case 'api-key-saved':
           if (msg.success) {
-            showStatus('API Key 已保存到本地', 'success');
+            // API Key保存成功，不需要显示状态
           } else {
-            showStatus('保存失败：' + (msg.error || '未知错误'), 'error');
+            figma.notify('保存失败：' + (msg.error || '未知错误'), { error: true });
           }
           break;
         case 'api-key-loaded':
           if (msg.success && msg.apiKey) {
             apiKey = msg.apiKey;
             document.getElementById('apiKey').value = msg.apiKey;
-            showStatus('API Key 已自动加载', 'success');
             updateSelectionInfo(); // 更新按钮状态
-          } else {
-            showStatus('未找到保存的 API Key，请手动输入', 'info');
           }
           break;
         case 'sync-summary':
@@ -533,7 +745,7 @@
           hideProgress();
           break;
         case 'sync-progress':
-          updateProgress(msg.percentage, msg.text);
+          updateProgress(msg.percentage, msg.text, msg.details);
           break;
         case 'sync-cancelled':
           hideProgress();
@@ -656,8 +868,6 @@
       
       const threshold = parseFloat(document.getElementById('threshold').value) || 0.08;
       const includeSourceFrame = document.getElementById('includeSourceFrame').checked;
-      const nameOnlyMode = document.getElementById('nameOnlyMode').checked;
-      const dryRunMode = document.getElementById('dryRunMode').checked;
       
       // 重置取消状态
       isSyncCancelled = false;
@@ -666,22 +876,33 @@
       showProgress();
       hideStatus();
       
+      // 准备消息数据
+      const messageData = {
+        type: 'sync-frames',
+        frameIds: selectedFrames.map(function(frame) {
+          return frame.id;
+        }),
+        sourceFrameId: sourceFrameId,
+        threshold: threshold,
+        includeSourceFrame: includeSourceFrame,
+        options: {
+          // 使用简化的默认配置
+          usePositionKey: true,
+          nameOnly: false,
+          useSize: true,
+          dryRun: false,
+          cell: 0.02,
+          tol: 0.06,
+          nameFirst: true,
+          posOnly: false,
+          batchSize: 100
+        }
+      };
+      
+      console.log('发送同步消息:', messageData);
+      
       parent.postMessage({ 
-        pluginMessage: { 
-          type: 'sync-frames',
-          frameIds: selectedFrames.map(function(frame) {
-            return frame.id;
-          }),
-          sourceFrameId: sourceFrameId,
-          threshold: threshold,
-          includeSourceFrame: includeSourceFrame,
-          options: {
-            nameOnly: nameOnlyMode,
-            dryRun: dryRunMode,
-            cellSize: 0.06,
-            batchSize: 100
-          }
-        } 
+        pluginMessage: messageData
       }, '*');
     }
     
@@ -705,6 +926,13 @@
       document.getElementById('progressContainer').style.display = 'block';
       document.getElementById('loading').style.display = 'none';
       updateProgress(0, '准备同步...');
+      
+      // 添加同步状态样式
+      document.querySelector('.container').classList.add('syncing');
+      
+      // 确保鼠标指针不被禁用
+      document.body.style.cursor = 'default';
+      document.body.style.pointerEvents = 'auto';
     }
     
     // 隐藏进度界面
@@ -712,12 +940,25 @@
       document.getElementById('syncBtn').disabled = false;
       document.getElementById('cancelBtn').style.display = 'none';
       document.getElementById('progressContainer').style.display = 'none';
+      
+      // 移除同步状态样式
+      document.querySelector('.container').classList.remove('syncing');
+      
+      // 重置鼠标指针
+      document.body.style.cursor = '';
+      document.body.style.pointerEvents = '';
     }
     
     // 更新进度
-    function updateProgress(percentage, text) {
+    function updateProgress(percentage, text, details) {
       document.getElementById('progressFill').style.width = percentage + '%';
       document.getElementById('progressText').textContent = text;
+      
+      if (details) {
+        document.getElementById('progressDetails').textContent = details;
+      } else {
+        document.getElementById('progressDetails').textContent = percentage + '%';
+      }
     }
     
     function toggleConfig() {
@@ -761,40 +1002,43 @@
       const generateBtn = document.getElementById('generateBtn');
       
       if (selectedTextNodes.length === 0) {
-        info.textContent = '请先在画布中选择文本图层';
-        info.className = 'selection-info';
+        info.textContent = '已经选中 0 个文本';
+        info.className = 'selection-status-text';
         generateBtn.disabled = true;
       } else {
         if (selectedTextNodes.length === 1) {
-          info.textContent = `已选择 1 个文本图层`;
+          info.textContent = `已经选中 1 个文本`;
         } else {
-          info.textContent = `已选择 ${selectedTextNodes.length} 个文本图层，将为每个图层生成独立文案`;
+          info.textContent = `已经选中 ${selectedTextNodes.length} 个文本`;
         }
-        info.className = 'selection-info';
+        info.className = 'selection-status-text';
         generateBtn.disabled = !apiKey;
       }
     }
     
     function generateText() {
       const prompt = document.getElementById('prompt').value.trim();
+      const generateBtn = document.getElementById('generateBtn');
       
       if (!prompt) {
-        showStatus('请输入文案需求描述', 'error');
+        figma.notify('请输入文案需求描述', { error: true });
         return;
       }
       
       if (!apiKey) {
-        showStatus('请先配置 API Key', 'error');
+        figma.notify('请先配置 API Key', { error: true });
         return;
       }
       
       if (selectedTextNodes.length === 0) {
-        showStatus('请先选择文本图层', 'error');
+        figma.notify('请先选择文本图层', { error: true });
         return;
       }
       
-      showLoading();
-      hideStatus();
+      // 设置按钮为loading状态
+      generateBtn.disabled = true;
+      generateBtn.classList.add('loading');
+      generateBtn.querySelector('.generate-button-text').textContent = '生成中...';
       
       parent.postMessage({ 
         pluginMessage: { 
@@ -806,27 +1050,7 @@
       }, '*');
     }
     
-    function showStatus(message, type) {
-      const status = document.getElementById('status');
-      status.textContent = message;
-      status.className = `status ${type}`;
-      status.style.display = 'block';
-    }
     
-    function hideStatus() {
-      const status = document.getElementById('status');
-      status.style.display = 'none';
-    }
-    
-    function showLoading() {
-      document.getElementById('loading').classList.add('show');
-      document.getElementById('generateBtn').disabled = true;
-    }
-    
-    function hideLoading() {
-      document.getElementById('loading').classList.remove('show');
-      document.getElementById('generateBtn').disabled = false;
-    }
   </script>
 </body>
 </html>
