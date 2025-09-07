@@ -29,7 +29,7 @@ figma.ui.onmessage = async (msg) => {
         await loadApiKey();
         break;
       case 'sync-frames':
-        await syncFrames(msg.frameIds, msg.threshold, msg.includeBaseFrame);
+        await syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame);
         break;
     }
   } catch (error) {
@@ -530,10 +530,14 @@ async function loadApiKey() {
 }
 
 // 多帧同步功能
-async function syncFrames(frameIds, threshold = 0.08, includeBaseFrame = false) {
+async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSourceFrame = false) {
   try {
     if (frameIds.length < 2) {
       throw new Error('至少需要选择2个Frame');
+    }
+
+    if (!sourceFrameId) {
+      throw new Error('请选择源Frame');
     }
 
     // 获取所有Frame节点
@@ -545,8 +549,14 @@ async function syncFrames(frameIds, threshold = 0.08, includeBaseFrame = false) 
       throw new Error('未找到有效的Frame节点');
     }
 
+    // 获取源Frame
+    const sourceFrame = frames.find(frame => frame.id === sourceFrameId);
+    if (!sourceFrame) {
+      throw new Error('未找到源Frame');
+    }
+
     // 检查Frame尺寸差异
-    const baseFrame = frames[0];
+    const baseFrame = sourceFrame;
     const sizeWarnings = [];
     for (let i = 1; i < frames.length; i++) {
       const frame = frames[i];
@@ -562,22 +572,24 @@ async function syncFrames(frameIds, threshold = 0.08, includeBaseFrame = false) 
       console.warn('Frame尺寸差异较大，匹配精度可能受影响:', sizeWarnings);
     }
 
-    // 获取基准帧的所有文本节点
-    const baseTextNodes = getTextNodesInFrame(baseFrame);
+    // 获取源Frame的所有文本节点
+    const sourceTextNodes = getTextNodesInFrame(sourceFrame);
     
     let matchCount = 0;
     let replaceCount = 0;
     let unmatchCount = 0;
     let skippedCount = 0;
 
-    // 遍历其他Frame进行同步
-    for (let i = includeBaseFrame ? 0 : 1; i < frames.length; i++) {
-      const targetFrame = frames[i];
+    // 确定要同步的目标Frame列表
+    const targetFrames = includeSourceFrame ? frames : frames.filter(frame => frame.id !== sourceFrameId);
+
+    // 遍历目标Frame进行同步
+    for (const targetFrame of targetFrames) {
       const targetTextNodes = getTextNodesInFrame(targetFrame);
       
-      // 为基准帧的每个文本节点找到最佳匹配
-      for (const baseTextNode of baseTextNodes) {
-        const bestMatch = findBestTextMatch(baseTextNode, targetTextNodes, threshold);
+      // 为源Frame的每个文本节点找到最佳匹配
+      for (const sourceTextNode of sourceTextNodes) {
+        const bestMatch = findBestTextMatch(sourceTextNode, targetTextNodes, threshold);
         
         if (bestMatch) {
           matchCount++;
@@ -589,9 +601,9 @@ async function syncFrames(frameIds, threshold = 0.08, includeBaseFrame = false) 
               await loadFontsIfNeeded([bestMatch.node]);
               
               // 确定要写入的内容
-              let contentToWrite = baseTextNode.characters;
+              let contentToWrite = sourceTextNode.characters;
               if (!contentToWrite) {
-                // 基准帧为空时，使用第一个非空候选
+                // 源Frame为空时，使用第一个非空候选
                 const nonEmptyCandidates = targetTextNodes
                   .filter(node => node.characters && node.characters.trim())
                   .map(node => node.characters);

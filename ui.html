@@ -326,6 +326,17 @@
     
     <div class="section">
       <div class="section-title">⚙️ 同步设置</div>
+      
+      <div class="input-group">
+        <label for="sourceFrame">选择源Frame:</label>
+        <select id="sourceFrame" onchange="updateSourceFrameInfo()">
+          <option value="">请选择源Frame...</option>
+        </select>
+        <div class="status info" style="margin-top: 4px; font-size: 10px;">
+          选择作为内容来源的Frame，其他Frame将同步此Frame的文本
+        </div>
+      </div>
+      
       <div class="input-group">
         <label for="threshold">匹配阈值:</label>
         <input type="number" id="threshold" value="0.08" min="0.01" max="0.5" step="0.01">
@@ -336,8 +347,8 @@
       
       <div class="input-group">
         <label>
-          <input type="checkbox" id="includeBaseFrame" style="margin-right: 8px;">
-          同步基准帧（以第一个Frame为准）
+          <input type="checkbox" id="includeSourceFrame" style="margin-right: 8px;">
+          同步源Frame（将源Frame也包含在同步范围内）
         </label>
       </div>
     </div>
@@ -348,8 +359,8 @@
         <strong>匹配规则：</strong><br>
         • 同名优先：文本节点 name 完全一致<br>
         • 相对位置：计算归一化坐标的欧氏距离<br>
-        • 基准帧优先：以第一个选中Frame的文本为准<br>
-        • 空值处理：基准帧为空时使用第一个非空候选
+        • 源Frame优先：以用户选择的源Frame的文本为准<br>
+        • 空值处理：源Frame为空时使用第一个非空候选
       </div>
     </div>
     
@@ -456,16 +467,70 @@
     function updateFrameSelectionInfo() {
       const info = document.getElementById('frame-selection-info');
       const syncBtn = document.getElementById('syncBtn');
+      const sourceFrameSelect = document.getElementById('sourceFrame');
       
       if (selectedFrames.length < 2) {
         info.textContent = '请先在画布中选择至少2个Frame';
         info.className = 'selection-info';
         syncBtn.disabled = true;
+        sourceFrameSelect.disabled = true;
       } else {
-        info.textContent = `已选择 ${selectedFrames.length} 个Frame，可以开始同步`;
+        info.textContent = `已选择 ${selectedFrames.length} 个Frame，请选择源Frame`;
         info.className = 'selection-info';
-        syncBtn.disabled = false;
+        sourceFrameSelect.disabled = false;
+        
+        // 更新源Frame下拉菜单
+        updateSourceFrameOptions();
+        
+        // 检查是否可以开始同步
+        checkSyncButtonState();
       }
+    }
+    
+    // 更新源Frame下拉菜单选项
+    function updateSourceFrameOptions() {
+      const sourceFrameSelect = document.getElementById('sourceFrame');
+      const currentValue = sourceFrameSelect.value;
+      
+      // 清空现有选项
+      sourceFrameSelect.innerHTML = '<option value="">请选择源Frame...</option>';
+      
+      // 添加选中的Frame选项
+      selectedFrames.forEach((frame, index) => {
+        const option = document.createElement('option');
+        option.value = frame.id;
+        option.textContent = `${frame.name} (${frame.width}×${frame.height})`;
+        sourceFrameSelect.appendChild(option);
+      });
+      
+      // 恢复之前的选择（如果仍然有效）
+      if (currentValue && selectedFrames.some(frame => frame.id === currentValue)) {
+        sourceFrameSelect.value = currentValue;
+      }
+    }
+    
+    // 更新源Frame信息
+    function updateSourceFrameInfo() {
+      const sourceFrameSelect = document.getElementById('sourceFrame');
+      const selectedFrameId = sourceFrameSelect.value;
+      
+      if (selectedFrameId) {
+        const selectedFrame = selectedFrames.find(frame => frame.id === selectedFrameId);
+        if (selectedFrame) {
+          const info = document.getElementById('frame-selection-info');
+          info.textContent = `源Frame：${selectedFrame.name}，将同步到其他 ${selectedFrames.length - 1} 个Frame`;
+        }
+      }
+      
+      checkSyncButtonState();
+    }
+    
+    // 检查同步按钮状态
+    function checkSyncButtonState() {
+      const syncBtn = document.getElementById('syncBtn');
+      const sourceFrameSelect = document.getElementById('sourceFrame');
+      
+      syncBtn.disabled = !sourceFrameSelect.value || selectedFrames.length < 2;
     }
     
     // 执行多帧同步
@@ -475,8 +540,14 @@
         return;
       }
       
+      const sourceFrameId = document.getElementById('sourceFrame').value;
+      if (!sourceFrameId) {
+        showStatus('请先选择源Frame', 'error');
+        return;
+      }
+      
       const threshold = parseFloat(document.getElementById('threshold').value) || 0.08;
-      const includeBaseFrame = document.getElementById('includeBaseFrame').checked;
+      const includeSourceFrame = document.getElementById('includeSourceFrame').checked;
       
       showLoading();
       hideStatus();
@@ -485,8 +556,9 @@
         pluginMessage: { 
           type: 'sync-frames',
           frameIds: selectedFrames.map(frame => frame.id),
+          sourceFrameId: sourceFrameId,
           threshold: threshold,
-          includeBaseFrame: includeBaseFrame
+          includeSourceFrame: includeSourceFrame
         } 
       }, '*');
     }
