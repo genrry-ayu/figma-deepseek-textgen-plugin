@@ -244,6 +244,7 @@
       <div class="status info" style="margin-top: 8px; font-size: 10px;">
         💡 提示：使用 DeepSeek API 生成高质量中文文案<br>
         ⚡ 批量生成：一次API调用生成所有文案，大幅提升性能<br>
+        💾 自动保存：API Key 会自动保存到本地，无需重复输入<br>
         🎯 推荐提示词：快递单号、公司名称、产品名称、按钮文案、标题文案<br>
         📋 参考格式：输入"参考：P0\P1"可指定输出格式，数字会自动递增
       </div>
@@ -264,11 +265,13 @@
     
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
-      loadApiKey();
       checkSelection();
       
       // 监听选择变化
       parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+      
+      // 请求加载存储的 API Key
+      parent.postMessage({ pluginMessage: { type: 'load-api-key' } }, '*');
     });
     
     // 监听来自插件主线程的消息
@@ -289,7 +292,21 @@
           hideLoading();
           break;
         case 'api-key-saved':
-          showStatus('API Key 已保存', 'success');
+          if (msg.success) {
+            showStatus('API Key 已保存到本地', 'success');
+          } else {
+            showStatus('保存失败：' + (msg.error || '未知错误'), 'error');
+          }
+          break;
+        case 'api-key-loaded':
+          if (msg.success && msg.apiKey) {
+            apiKey = msg.apiKey;
+            document.getElementById('apiKey').value = msg.apiKey;
+            showStatus('API Key 已自动加载', 'success');
+            updateSelectionInfo(); // 更新按钮状态
+          } else {
+            showStatus('未找到保存的 API Key，请手动输入', 'info');
+          }
           break;
       }
     };
@@ -315,8 +332,8 @@
       }
       
       apiKey = key;
-      localStorage.setItem('figma-textgen-api-key', key);
       
+      // 使用 Figma 的 clientStorage 保存 API Key
       parent.postMessage({ 
         pluginMessage: { 
           type: 'save-api-key', 
@@ -325,13 +342,6 @@
       }, '*');
     }
     
-    function loadApiKey() {
-      const savedKey = localStorage.getItem('figma-textgen-api-key');
-      if (savedKey) {
-        apiKey = savedKey;
-        document.getElementById('apiKey').value = savedKey;
-      }
-    }
     
     function checkSelection() {
       parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');

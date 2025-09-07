@@ -23,8 +23,10 @@ figma.ui.onmessage = async (msg) => {
         await generateText(msg.prompt, msg.apiKey, msg.nodeIds);
         break;
       case 'save-api-key':
-        // API Key 由 UI 端存储，这里只是确认
-        figma.ui.postMessage({ type: 'api-key-saved' });
+        await saveApiKey(msg.apiKey);
+        break;
+      case 'load-api-key':
+        await loadApiKey();
         break;
     }
   } catch (error) {
@@ -461,5 +463,62 @@ figma.on('close', () => {
   selectedTextNodes = [];
 });
 
-// 初始化时检查选择
+// 保存 API Key 到本地存储
+async function saveApiKey(apiKey) {
+  try {
+    const apiSettings = {
+      apiKey: apiKey,
+      timestamp: Date.now()
+    };
+    
+    await figma.clientStorage.setAsync('deepseekApiSettings', apiSettings);
+    figma.ui.postMessage({ 
+      type: 'api-key-saved',
+      success: true 
+    });
+    
+    console.log('API Key 已保存到本地存储');
+  } catch (error) {
+    console.error('保存 API Key 失败:', error);
+    figma.ui.postMessage({ 
+      type: 'api-key-saved',
+      success: false,
+      error: error.message 
+    });
+  }
+}
+
+// 从本地存储加载 API Key
+async function loadApiKey() {
+  try {
+    const storedSettings = await figma.clientStorage.getAsync('deepseekApiSettings');
+    
+    if (storedSettings && storedSettings.apiKey) {
+      figma.ui.postMessage({ 
+        type: 'api-key-loaded',
+        apiKey: storedSettings.apiKey,
+        success: true 
+      });
+      
+      console.log('API Key 已从本地存储加载');
+    } else {
+      figma.ui.postMessage({ 
+        type: 'api-key-loaded',
+        success: false 
+      });
+      
+      console.log('未找到存储的 API Key');
+    }
+  } catch (error) {
+    console.error('加载 API Key 失败:', error);
+    figma.ui.postMessage({ 
+      type: 'api-key-loaded',
+      success: false,
+      error: error.message 
+    });
+  }
+}
+
+// 初始化时检查选择和加载 API Key
 handleSelectionChange();
+loadApiKey();
