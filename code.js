@@ -34,6 +34,21 @@ figma.ui.onmessage = async (msg) => {
       case 'get-selection':
         handleSelectionChange();
         break;
+      case 'list-fonts':
+        await listAvailableFonts();
+        break;
+      case 'list-text-styles':
+        await listTextStyles();
+        break;
+      case 'replace-fonts':
+        await replaceFontsInContainers(msg.fontFamily, msg.fontStyle, msg.containerIds);
+        break;
+      case 'replace-with-text-style':
+        await replaceWithTextStyle(msg.styleId, msg.fontFamily, msg.fontStyle, msg.containerIds);
+        break;
+      case 'replace-font-family':
+        await replaceFontFamilyInContainers(msg.fontFamily, msg.containerIds);
+        break;
       case 'generate-text':
         await generateText(msg.prompt, msg.apiKey, msg.nodeIds);
         break;
@@ -103,7 +118,7 @@ figma.ui.onmessage = async (msg) => {
 function handleSelectionChange() {
   const selection = figma.currentPage.selection;
   selectedTextNodes = selection.filter(node => node.type === 'TEXT');
-  const selectedFrames = selection.filter(node => node.type === 'FRAME');
+  const selectedFrames = selection.filter(node => node.type === 'FRAME' || node.type === 'SECTION');
   
   // 发送选择信息到 UI
   figma.ui.postMessage({ 
@@ -218,6 +233,35 @@ function enhancePrompt(prompt, currentIndex, totalCount) {
     return enhancedPrompt;
   }
   
+  // CRM/表格字段优化
+  if (/公司地址|地址/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个真实的中国公司地址，格式为：省市区(县)+道路门牌号，例如 广东省深圳市南山区高新南七道12号。每行一个，不要引号和多余说明。`;
+  }
+  else if (/城市/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个中国城市名，仅输出城市名本身，如 北京、上海、杭州、成都。`;
+  }
+  else if (/(联系人|姓名|销售人员)/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个中文姓名，2-3 个汉字，不带称谓或标点。`;
+  }
+  else if (/(手机|手机号|电话)/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个中国大陆 11 位手机号，1[3-9] 开头，只输出数字，例如 13812345678。`;
+  }
+  else if (/(邮箱|电子邮件)/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个常见格式的公司邮箱，例如 li.wei@company.com，不包含说明或空格。`;
+  }
+  else if (/(客户规模|规模)/.test(prompt)) {
+    enhancedPrompt = `从以下集合中选择，生成 ${totalCount} 个不同的客户规模：<20、20-100、100-500、500-1000、1000-10000、>10000。`;
+  }
+  else if (/(跟进状态|状态)/.test(prompt)) {
+    enhancedPrompt = `从以下集合中选择，生成 ${totalCount} 个不同的跟进状态：已成交、跟进中、待联系、待决策、方案阶段。`;
+  }
+  else if (/(创建时间|日期|时间)/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个日期，格式为 YYYY/MM/DD，时间范围为近三年内，彼此不同。`;
+  }
+  else if (/(公司名称|公司名|企业名称|客户名称)/.test(prompt)) {
+    enhancedPrompt = `生成 ${totalCount} 个真实感强的中文公司名称，包含常见后缀（如 有限公司/股份有限公司/科技有限公司），彼此不同，避免堆砌与重复。`;
+  }
+
   // 快递单号优化
   if (prompt.includes('快递单号') || prompt.includes('运单号') || prompt.includes('物流单号')) {
     enhancedPrompt = `生成一个真实的快递单号，格式为：公司代码（2-3位大写字母）+ 9-12位数字。例如：SF123456789、YT987654321、JD456789123。请生成第${currentIndex}个不同的快递单号。`;
@@ -406,38 +450,46 @@ async function callLLMAPI(prompt, apiKey, totalCount = 1) {
       messages: [
         {
           role: "system",
-          content: `你是一个专业的文案生成助手。请严格按照以下要求批量生成文案：
+          content: `你是一个专业的界面文案生成助手，面向中文产品（电商、CRM、后台表格/看板等）。请严格遵循：
 
 【核心要求】
-1. 需要生成 ${totalCount} 个不同的文案
-2. 每个文案都要独特且有创意，避免重复或相似
-3. 输出内容要精准、简洁，符合中文表达习惯
-4. 不要包含引号、括号或其他标点符号（除非用户明确要求）
-5. 输出格式：每行一个文案，用换行符分隔
+1. 必须生成 ${totalCount} 行结果，彼此不同
+2. 只输出最终内容，不要任何前缀/编号/解释
+3. 文案需简洁，默认 2–12 个汉字或等宽字符
+4. 无需引号、括号或多余标点（除非用户明确要求）
+5. 输出格式：每行一个结果，用换行分隔
 
 【批量生成规则】
-- 第1个文案：${totalCount >= 1 ? '生成第1个文案' : ''}
-- 第2个文案：${totalCount >= 2 ? '生成第2个文案，与第1个有明显区别' : ''}
-- 第3个文案：${totalCount >= 3 ? '生成第3个文案，与前两个都有明显区别' : ''}
-- 第4个文案：${totalCount >= 4 ? '生成第4个文案，与前三个都有明显区别' : ''}
-- 第5个文案：${totalCount >= 5 ? '生成第5个文案，与前四个都有明显区别' : ''}
+- 第1个：${totalCount >= 1 ? '生成第1个' : ''}
+- 第2个：${totalCount >= 2 ? '与第1个明显不同' : ''}
+- 第3个：${totalCount >= 3 ? '与前两个明显不同' : ''}
+- 第4个：${totalCount >= 4 ? '与前三个明显不同' : ''}
+- 第5个：${totalCount >= 5 ? '与前四个明显不同' : ''}
 
-【常见场景示例】
+【CRM/后台字段（当提示词命中以下关键词时，严格使用对应规范）】
+- 公司名称/企业名称/客户名称：仿真实中文公司名，含常见后缀（有限公司/股份有限公司/科技有限公司等），避免堆砌与重复
+- 公司地址/地址：省市区(县)+道路门牌号，如 广东省深圳市南山区高新南七道12号
+- 城市：仅输出城市名，如 北京、上海、杭州、成都，尽量 2–3 字
+- 联系人/姓名/销售人员：中文姓名 2–3 字，如 王磊、陈雅涵，不带称谓
+- 手机/电话/手机号：11 位中国大陆手机号，1[3-9] 开头，如 13812345678
+- 邮箱/电子邮件：合理邮箱，如 li.wei@company.com
+- 客户规模/规模：从集合中选择 <20、20-100、100-500、500-1000、1000-10000、>10000
+- 跟进状态/状态：从集合中选择 已成交、跟进中、待联系、待决策、方案阶段
+- 创建时间/日期：YYYY/MM/DD，近三年内随机日期
+
+【其他常见示例】
 - 快递单号：SF123456789、YT987654321、JD456789123
-- 公司名称：创新科技有限公司、智慧生活服务有限公司、绿色能源科技股份有限公司
 - 产品名称：智能手环、无线充电器、高清摄像头
 - 按钮文案：立即购买、马上抢购、加入购物车
-- 标题文案：创新科技引领未来、智能生活从这里开始
 
 【参考格式支持】
-- 当用户提供参考格式时（如"参考：P0\\P1"），必须严格按照该格式生成
-- 格式中的数字会自动递增（P0→P1→P2...）
-- 输出内容必须完全匹配指定的格式模板
+- 当用户提供参考格式（如"参考：P0\\P1"），必须严格按该格式输出
+- 格式中的序号自动递增（P0→P1→P2...）
+- 结果必须完全匹配格式模板
 
 【输出要求】
-- 严格按照要求的数量生成文案
-- 每个文案都要有显著差异
-- 直接输出文案，每行一个，不要编号或前缀`
+- 数量准确、彼此差异明显
+- 仅输出结果本身，逐行一个`
         },
         {
           role: "user",
@@ -651,6 +703,300 @@ function apply(m, x, y) {
   const a = m[0][0], c = m[0][1], e = m[0][2];
   const b = m[1][0], d = m[1][1], f = m[1][2];
   return { x: a * x + c * y + e, y: b * x + d * y + f };
+}
+
+// ========== 字体列表与替换 ==========
+
+// 列出当前账号可用字体
+async function listAvailableFonts() {
+  try {
+    const fonts = await figma.listAvailableFontsAsync();
+    const payload = fonts.map(function(f) {
+      return { family: f.fontName.family, style: f.fontName.style };
+    });
+    figma.ui.postMessage({ type: 'fonts-listed', fonts: payload });
+  } catch (error) {
+    console.error('列出字体失败:', error);
+    figma.ui.postMessage({ type: 'replace-error', error: '读取字体失败：' + error.message });
+  }
+}
+
+// 在选中的 Frame / Section 中替换文本节点字体
+async function replaceFontsInContainers(fontFamily, fontStyle, containerIds) {
+  try {
+    if (!fontFamily || !fontStyle) throw new Error('未选择字体');
+
+    const targetFont = { family: fontFamily, style: fontStyle };
+    await figma.loadFontAsync(targetFont);
+
+    // 收集容器
+    const containers = [];
+    if (Array.isArray(containerIds) && containerIds.length) {
+      for (let i = 0; i < containerIds.length; i++) {
+        const node = figma.getNodeById(containerIds[i]);
+        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) {
+          containers.push(node);
+        }
+      }
+    } else {
+      // 兜底：用当前选择
+      const sel = figma.currentPage.selection;
+      for (let i = 0; i < sel.length; i++) {
+        const n = sel[i];
+        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
+      }
+    }
+
+    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+
+    // 收集文本节点
+    const textNodes = [];
+    for (let i = 0; i < containers.length; i++) {
+      const c = containers[i];
+      try {
+        const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
+        for (let j = 0; j < nodes.length; j++) {
+          textNodes.push(nodes[j]);
+        }
+      } catch (e) {
+        // 回退到递归
+        const rec = getTextNodesInFrameRecursive(c);
+        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+      }
+    }
+
+    if (textNodes.length === 0) {
+      figma.ui.postMessage({ type: 'replace-summary', count: 0 });
+      return;
+    }
+
+    // 进度
+    const total = textNodes.length;
+    let done = 0;
+
+    // 替换
+    for (let i = 0; i < textNodes.length; i++) {
+      const n = textNodes[i];
+      try {
+        if (n.locked) continue;
+        const len = n.characters.length;
+        await figma.loadFontAsync(targetFont);
+        if (len > 0) {
+          n.setRangeFontName(0, len, targetFont);
+        } else if (n.fontName !== figma.mixed) {
+          n.fontName = targetFont;
+        } else {
+          // 空字符但混合，统一成目标字体
+          n.fontName = targetFont;
+        }
+      } catch (e) {
+        // 忽略单个节点失败
+      } finally {
+        done++;
+        const pct = Math.floor((done / total) * 100);
+        figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
+        await sleep(0);
+      }
+    }
+
+    figma.ui.postMessage({ type: 'replace-summary', count: done });
+  } catch (error) {
+    console.error('字体替换失败:', error);
+    figma.ui.postMessage({ type: 'replace-error', error: error.message });
+  }
+}
+
+// 仅替换字体家族（保留各段落字重/样式），无法匹配的样式回退到 Regular/第一个可用样式
+async function replaceFontFamilyInContainers(fontFamily, containerIds) {
+  try {
+    if (!fontFamily) throw new Error('未选择字体');
+
+    // 统计该 family 可用样式
+    const all = await figma.listAvailableFontsAsync();
+    const styles = all.filter(function(f){ return f.fontName.family === fontFamily; }).map(function(f){ return f.fontName.style; });
+    const available = new Set(styles);
+    if (available.size === 0) throw new Error('该字体不可用');
+
+    const pickFallback = function() {
+      if (available.has('Regular')) return 'Regular';
+      return styles[0];
+    };
+
+    const loaded = new Set();
+    async function ensureLoaded(style) {
+      const key = fontFamily + '||' + style;
+      if (loaded.has(key)) return style;
+      try {
+        await figma.loadFontAsync({ family: fontFamily, style: style });
+        loaded.add(key);
+        return style;
+      } catch (_) {
+        const fb = pickFallback();
+        const fbKey = fontFamily + '||' + fb;
+        if (!loaded.has(fbKey)) {
+          await figma.loadFontAsync({ family: fontFamily, style: fb });
+          loaded.add(fbKey);
+        }
+        return fb;
+      }
+    }
+
+    // 容器
+    const containers = [];
+    if (Array.isArray(containerIds) && containerIds.length) {
+      for (let i = 0; i < containerIds.length; i++) {
+        const node = figma.getNodeById(containerIds[i]);
+        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) containers.push(node);
+      }
+    } else {
+      const sel = figma.currentPage.selection;
+      for (let i = 0; i < sel.length; i++) {
+        const n = sel[i];
+        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
+      }
+    }
+
+    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+
+    // 文本节点
+    const textNodes = [];
+    for (let i = 0; i < containers.length; i++) {
+      const c = containers[i];
+      try {
+        const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
+        for (let j = 0; j < nodes.length; j++) textNodes.push(nodes[j]);
+      } catch (e) {
+        const rec = getTextNodesInFrameRecursive(c);
+        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+      }
+    }
+
+    const total = textNodes.length; let done = 0;
+    for (let i = 0; i < textNodes.length; i++) {
+      const n = textNodes[i];
+      try {
+        if (n.locked) continue;
+        if (n.characters.length > 0 && n.getStyledTextSegments) {
+          const segs = n.getStyledTextSegments(['fontName']);
+          for (let s = 0; s < segs.length; s++) {
+            const seg = segs[s];
+            const desiredStyle = available.has(seg.fontName.style) ? seg.fontName.style : pickFallback();
+            const usedStyle = await ensureLoaded(desiredStyle);
+            n.setRangeFontName(seg.start, seg.end, { family: fontFamily, style: usedStyle });
+          }
+        } else {
+          // 空文本或无法分段
+          let oldStyle = 'Regular';
+          try {
+            if (n.fontName !== figma.mixed && n.fontName && n.fontName.style) oldStyle = n.fontName.style;
+          } catch (_) {}
+          const desiredStyle = available.has(oldStyle) ? oldStyle : pickFallback();
+          const usedStyle = await ensureLoaded(desiredStyle);
+          n.fontName = { family: fontFamily, style: usedStyle };
+        }
+      } catch (_) {
+        // 忽略单点失败
+      } finally {
+        done++;
+        const pct = Math.floor((done / total) * 100);
+        figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
+        await sleep(0);
+      }
+    }
+
+    figma.ui.postMessage({ type: 'replace-summary', count: done });
+  } catch (error) {
+    console.error('仅替换字体家族失败:', error);
+    figma.ui.postMessage({ type: 'replace-error', error: error.message });
+  }
+}
+// 列出本文件中的本地文本样式（视为样式 token）
+async function listTextStyles() {
+  try {
+    const styles = figma.getLocalTextStyles();
+    const payload = styles.map(function(s) {
+      return {
+        id: s.id,
+        name: s.name,
+        fontFamily: s.fontName.family,
+        fontStyle: s.fontName.style
+      };
+    });
+    figma.ui.postMessage({ type: 'text-styles-listed', styles: payload });
+  } catch (error) {
+    console.error('读取文本样式失败:', error);
+    figma.ui.postMessage({ type: 'replace-error', error: '读取文本样式失败：' + error.message });
+  }
+}
+
+// 使用文本样式替换（应用为文本样式 token）
+async function replaceWithTextStyle(styleId, fontFamily, fontStyle, containerIds) {
+  try {
+    if (!styleId) throw new Error('未选择文本样式');
+
+    // 预加载样式所需字体（保险起见）
+    if (fontFamily && fontStyle) {
+      try { await figma.loadFontAsync({ family: fontFamily, style: fontStyle }); } catch (_) {}
+    }
+
+    // 容器收集
+    const containers = [];
+    if (Array.isArray(containerIds) && containerIds.length) {
+      for (let i = 0; i < containerIds.length; i++) {
+        const node = figma.getNodeById(containerIds[i]);
+        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) containers.push(node);
+      }
+    } else {
+      const sel = figma.currentPage.selection;
+      for (let i = 0; i < sel.length; i++) {
+        const n = sel[i];
+        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
+      }
+    }
+
+    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+
+    // 收集文本节点
+    const textNodes = [];
+    for (let i = 0; i < containers.length; i++) {
+      const c = containers[i];
+      try {
+        const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
+        for (let j = 0; j < nodes.length; j++) textNodes.push(nodes[j]);
+      } catch (e) {
+        const rec = getTextNodesInFrameRecursive(c);
+        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+      }
+    }
+
+    const total = textNodes.length;
+    let done = 0;
+    for (let i = 0; i < textNodes.length; i++) {
+      const n = textNodes[i];
+      try {
+        if (n.locked) continue;
+        const len = n.characters.length;
+        if (len > 0) {
+          n.setRangeTextStyleId(0, len, styleId);
+        } else {
+          // 空节点时尽量直接赋值样式 id
+          try { n.textStyleId = styleId; } catch (_) {}
+        }
+      } catch (_) {
+        // 忽略单点失败
+      } finally {
+        done++;
+        const pct = Math.floor((done / total) * 100);
+        figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '样式替换中...', details: pct + '%' });
+        await sleep(0);
+      }
+    }
+
+    figma.ui.postMessage({ type: 'replace-summary', count: done });
+  } catch (error) {
+    console.error('应用文本样式失败:', error);
+    figma.ui.postMessage({ type: 'replace-error', error: error.message });
+  }
 }
 
 function invert(m) {
@@ -976,8 +1322,9 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
     // 构建源Frame索引
     updateProgress(30, '构建源Frame索引...');
     
+    let pivotIndex;
     try {
-      const pivotIndex = indexFrameByPos(sourceFrame, { cell: cell, useSize: useSize });
+      pivotIndex = indexFrameByPos(sourceFrame, { cell: cell, useSize: useSize });
       if (pivotIndex.infos.length === 0) {
         figma.notify('源Frame中没有文本节点');
         return;

@@ -9,7 +9,7 @@
     }
     
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       margin: 0;
       padding: 16px;
       background: #ffffff;
@@ -18,25 +18,7 @@
       line-height: 1.4;
     }
     
-    .header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #e5e5e5;
-    }
-    
-    .header h1 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-    }
-    
-    .header .icon {
-      margin-right: 8px;
-      font-size: 16px;
-    }
+    /* 顶部标题已移除 */
     
     .section {
       margin-bottom: 16px;
@@ -113,34 +95,21 @@
     }
     
     .button {
-      background: #0066cc;
-      color: white;
+      background: #111111;
+      color: #ffffff;
       border: none;
       border-radius: 4px;
       padding: 8px 16px;
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: background-color 0.2s ease;
     }
-    
-    .button:hover {
-      background: #0052a3;
-    }
-    
-    .button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    
-    .button.secondary {
-      background: #f0f0f0;
-      color: #333;
-    }
-    
-    .button.secondary:hover {
-      background: #e0e0e0;
-    }
+    .button:hover { background: #333333; }
+    .button:active { background: #000000; }
+    .button:disabled { background: #dddddd; color: #999999; cursor: not-allowed; }
+    .button.secondary { background: #f5f5f5; color: #1a1a1a; border: 1px solid #dddddd; }
+    .button.secondary:hover { background: #eeeeee; }
     
     
     .selection-info {
@@ -498,34 +467,27 @@
       width: 320px;
       height: 40px;
       border-bottom: 0.5px solid #dddddd;
+      display: flex;
     }
     
     .tab-button {
-      position: absolute;
-      top: 0;
       height: 40px;
       padding: 12px 20px;
       border: none;
       background: none;
       cursor: pointer;
       transition: all 0.2s ease;
-    }
-    
-    .tab-button:first-child {
-      left: 0;
-      border-bottom: 3px solid #222222;
-    }
-    
-    .tab-button:last-child {
-      left: 80px;
+      position: relative;
     }
     
     .tab-button:hover:not(.active) {
       background: rgba(0, 0, 0, 0.02);
     }
     
-    .tab-button.active {
-      background: transparent;
+    .tab-button.active { background: transparent; }
+    /* 取消激活态下划线 */
+    .tab-button.active::after {
+      display: none;
     }
     
     .tab-button-text {
@@ -548,7 +510,7 @@
       position: absolute;
       left: 20px;
       top: 66px;
-      width: 278px;
+      width: 280px;
     }
     
     .tab-content.active {
@@ -558,6 +520,8 @@
 </head>
 <body>
   
+  <!-- 顶部标题已移除，保留标签栏 -->
+  
   <!-- 选项卡导航 -->
   <div class="tab-nav">
     <button class="tab-button active" id="generateTab" onclick="switchTab('generate')">
@@ -565,6 +529,9 @@
     </button>
     <button class="tab-button" id="syncTab" onclick="switchTab('sync')">
       <span class="tab-button-text">多帧同步</span>
+    </button>
+    <button class="tab-button" id="fontTab" onclick="switchTab('font')">
+      <span class="tab-button-text">字体替换</span>
     </button>
   </div>
   
@@ -615,56 +582,111 @@
     </div>
   </div>
   
-  <!-- 多帧同步选项卡内容 -->
+  <!-- 多帧同步选项卡内容（按规范优化） -->
   <div class="tab-content" id="syncContent">
-    <div class="section">
-      <div class="section-title">🔄 多帧同步</div>
-      <div class="selection-info" id="frame-selection-info">
-        请先在画布中选择至少2个Frame
+    <style>
+      /* 同步面板局部样式，避免影响生成文本页 */
+      #syncContent .sync-panel { display: flex; flex-direction: column; gap: 24px; }
+      #syncContent .sync-field { display: flex; flex-direction: column; gap: 4px; }
+      #syncContent .sync-label { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-hint { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; }
+      #syncContent .sync-select,
+      #syncContent .sync-input { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
+      #syncContent .sync-select::placeholder,
+      #syncContent .sync-input::placeholder { color: #CCCCCC; }
+      #syncContent .sync-actions { padding-top: 8px; }
+      #syncContent .sync-button { width: 100%; height: 30px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
+      #syncContent .sync-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
+      #syncContent .sync-cancel { margin-top: 8px; }
+      #syncContent .sync-progress { display: none; gap: 4px; margin-top: 10px; }
+      #syncContent .sync-progress-head { display: flex; gap: 4px; align-items: center; }
+      #syncContent .sync-progress-label, #syncContent .sync-progress-percent { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
+      #syncContent .sync-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; border-radius: 4px; transition: width .2s ease; }
+    </style>
+
+    <div class="sync-panel">
+      <div class="sync-field">
+        <div class="sync-label">选择状态</div>
+        <div class="sync-hint" id="frame-selection-info">请选择至少 2 个 Frame</div>
       </div>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">⚙️ 同步设置</div>
-      
-      <div class="input-group">
-        <label for="sourceFrame">选择源Frame:</label>
-        <select id="sourceFrame" onchange="updateSourceFrameInfo()">
-          <option value="">请选择源Frame...</option>
+
+      <div class="sync-field">
+        <div class="sync-label">同步源</div>
+        <select class="sync-select" id="sourceFrame" onchange="updateSourceFrameInfo()">
+          <option value="">请选择内容来源的 Frame</option>
         </select>
-        <div class="status info" style="margin-top: 4px; font-size: 10px;">
-          选择作为内容来源的Frame，其他Frame将同步此Frame的文本
-        </div>
       </div>
-      
-      <div class="input-group">
-        <label for="threshold">匹配阈值:</label>
-        <input type="number" id="threshold" value="0.08" min="0.01" max="0.5" step="0.01">
-        <div class="status info" style="margin-top: 4px; font-size: 10px;">
-          默认 0.08（短边 8%），超过此阈值视为不匹配
-        </div>
+
+      <!-- 已按用户要求移除“匹配阈值”和“同步源 Frame”选项，采用默认策略 -->
+
+      <div class="sync-field sync-actions">
+        <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
+        <button class="button cancel-button sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">终止同步</button>
       </div>
-      
-      <div class="input-group">
-        <label>
-          <input type="checkbox" id="includeSourceFrame" style="margin-right: 8px;">
-          同步源Frame
-        </label>
+
+      <!-- 进度展示 -->
+      <div class="sync-progress" id="progressContainer">
+        <div class="sync-progress-head">
+          <div class="sync-progress-label">同步进度</div>
+          <div class="sync-progress-percent" id="progressPercent">0%</div>
+        </div>
+        <div class="sync-progress-bar">
+          <div class="sync-progress-fill" id="progressFill"></div>
+        </div>
+        <!-- 兼容旧逻辑的隐藏文本容器 -->
+        <div class="hidden" id="progressText">同步中...</div>
+        <div class="hidden" id="progressDetails">0%</div>
       </div>
     </div>
-    
-    
-    <button class="button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
-    <button class="button cancel-button" id="cancelBtn" onclick="cancelSync()" style="display: none; background-color: #ff4444; margin-top: 8px;">终止同步</button>
   </div>
-  
-  
-  <div class="progress-container" id="progressContainer" style="display: none;">
-    <div class="progress-text" id="progressText">准备中...</div>
-    <div class="progress-bar">
-      <div class="progress-fill" id="progressFill"></div>
+
+  <!-- 字体替换选项卡内容 -->
+  <div class="tab-content" id="fontContent">
+    <style>
+      #fontContent .font-panel { display: flex; flex-direction: column; gap: 24px; }
+      #fontContent .font-field { display: flex; flex-direction: column; gap: 8px; }
+      #fontContent .font-label { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #fontContent .font-select, #fontContent .font-input { width: 100%; height: 36px; border: 0.5px solid #CCCCCC; border-radius: 8px; padding: 0 12px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; background: #FFFFFF; }
+      #fontContent .font-select:disabled, #fontContent .font-input:disabled { color: #AAAAAA; }
+      #fontContent .font-combobox { position: relative; width: 100%; }
+      #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 8px; max-height: 720px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+      #fontContent .font-option { padding: 8px 12px; cursor: pointer; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; display: flex; align-items: center; }
+      #fontContent .font-option:hover { background: #F5F5F5; }
+      #fontContent .font-option.empty { color:#AAAAAA; cursor: default; }
+      #fontContent .badge-rec { margin-left: 8px; padding: 0 6px; border-radius: 10px; background: #F5F5F5; color: #1A1A1A; font: 400 12px/18px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      #fontContent .font-button { width: 100%; height: 40px; background: #1A1A1A; border-radius: 8px; border: none; color: #FFFFFF; font: 400 16px/24px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
+      #fontContent .font-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
+      #fontContent .font-progress { display: none; gap: 8px; }
+      #fontContent .font-progress-text { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #fontContent .font-progress-bar { position: relative; width: 100%; height: 6px; background: #E5E5E5; border-radius: 3px; overflow: hidden; }
+      #fontContent .font-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; transition: width .2s ease; }
+      #fontContent .font-quick { display:flex; gap:12px; }
+      #fontContent .font-quick .font-button { height: 36px; flex:1; }
+      /* 简化为系统字体来源，仅选择字体家族 */
+    </style>
+    <div class="font-panel">
+      <!-- 仅系统字体来源，无来源切换 -->
+      <div class="font-field">
+        <div class="font-label">替换为</div>
+        <div class="font-combobox">
+          <input id="fontInput" class="font-input" placeholder="请选择字体" disabled />
+          <div id="fontDropdown" class="font-dropdown" style="display:none;"></div>
+        </div>
+      </div>
+      <button id="replaceBtn" class="font-button" disabled onclick="startReplaceFonts()">开始替换</button>
+      <!-- 推荐快捷按钮（替换进度出现时会隐藏） -->
+      <div id="quickRecommend" class="font-quick">
+        <button class="font-button" onclick="quickReplaceFamily('SF Pro Text')">SF Pro Text</button>
+        <button class="font-button" onclick="quickReplaceFamily('PingFang SC')">PingFang SC</button>
+      </div>
+      <div id="replaceProgress" class="font-progress">
+        <div class="font-progress-text" id="replaceProgressText">替换进度 0%</div>
+        <div class="font-progress-bar">
+          <div class="font-progress-fill" id="replaceProgressFill"></div>
+        </div>
+      </div>
     </div>
-    <div class="progress-details" id="progressDetails">正在初始化...</div>
   </div>
   
   
@@ -682,8 +704,38 @@
       // 监听选择变化
       parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
       
-      // 请求加载存储的 API Key
-      parent.postMessage({ pluginMessage: { type: 'load-api-key' } }, '*');
+      // 先尝试从本地 localStorage 加载 API Key（跨文件/跨账号同机持久）
+      try {
+        const localKey = localStorage.getItem('deepseekApiKey');
+        if (localKey) {
+          apiKey = localKey;
+          const el = document.getElementById('apiKey');
+          if (el) el.value = localKey;
+          updateSelectionInfo();
+        } else {
+          // 回退到插件 clientStorage（同账号跨文件持久）
+          parent.postMessage({ pluginMessage: { type: 'load-api-key' } }, '*');
+        }
+      } catch (e) {
+        // 出错时回退插件存储
+        parent.postMessage({ pluginMessage: { type: 'load-api-key' } }, '*');
+      }
+
+      // 请求系统字体列表
+      parent.postMessage({ pluginMessage: { type: 'list-fonts' } }, '*');
+
+      // 字体输入实时更新按钮状态与下拉
+      const fontInputEl = document.getElementById('fontInput');
+      if (fontInputEl) {
+        fontInputEl.addEventListener('input', function(){ renderFontDropdown(this.value); updateReplaceButtonState(); });
+        fontInputEl.addEventListener('focus', function(){ renderFontDropdown(this.value); });
+        fontInputEl.addEventListener('change', updateReplaceButtonState);
+      }
+      document.addEventListener('click', function(e){
+        const dd = document.getElementById('fontDropdown');
+        const box = document.querySelector('#fontContent .font-combobox');
+        if (dd && box && !box.contains(e.target)) dd.style.display = 'none';
+      });
     });
     
     // 监听来自插件主线程的消息
@@ -696,6 +748,7 @@
           selectedFrames = msg.frames || [];
           updateSelectionInfo();
           updateFrameSelectionInfo();
+          updateReplaceButtonState();
           break;
         case 'generate-success':
           // 恢复按钮状态
@@ -712,17 +765,17 @@
           generateBtnError.querySelector('.generate-button-text').textContent = '生成文案';
           break;
         case 'api-key-saved':
-          if (msg.success) {
-            // API Key保存成功，不需要显示状态
-          } else {
-            figma.notify('保存失败：' + (msg.error || '未知错误'), { error: true });
+          if (!msg.success) {
+            showStatus('保存失败：' + (msg.error || '未知错误'), 'error');
           }
           break;
         case 'api-key-loaded':
           if (msg.success && msg.apiKey) {
             apiKey = msg.apiKey;
             document.getElementById('apiKey').value = msg.apiKey;
-            updateSelectionInfo(); // 更新按钮状态
+            // 将插件端的 key 同步存入 localStorage，形成长期备份
+            try { localStorage.setItem('deepseekApiKey', msg.apiKey); } catch (e) {}
+            updateSelectionInfo();
           }
           break;
         case 'sync-summary':
@@ -753,7 +806,24 @@
           break;
         case 'sync-error':
           showStatus('同步失败：' + msg.error, 'error');
-          hideLoading();
+          hideProgress();
+          break;
+        case 'fonts-listed':
+          populateFonts(msg.fonts || []);
+          break;
+        case 'replace-progress':
+          showReplaceProgress(msg.percentage, msg.text || '替换中...', msg.details);
+          break;
+        case 'replace-summary':
+          showReplaceProgress(100, '替换完成', '100%');
+          setTimeout(hideReplaceProgress, 400);
+          showStatus(`替换完成：共处理 ${msg.count || 0} 个文本`, 'success');
+          document.getElementById('replaceBtn').disabled = false;
+          break;
+        case 'replace-error':
+          hideReplaceProgress();
+          showStatus('替换失败：' + msg.error, 'error');
+          document.getElementById('replaceBtn').disabled = false;
           break;
       }
     };
@@ -775,6 +845,10 @@
         checkSelection();
       } else if (tabName === 'sync') {
         checkFrameSelection();
+      } else if (tabName === 'font') {
+        // 进入字体替换页时刷新系统字体
+        parent.postMessage({ pluginMessage: { type: 'list-fonts' } }, '*');
+        updateReplaceButtonState();
       }
     }
     
@@ -866,8 +940,9 @@
         return;
       }
       
-      const threshold = parseFloat(document.getElementById('threshold').value) || 0.08;
-      const includeSourceFrame = document.getElementById('includeSourceFrame').checked;
+      // 使用默认策略：阈值 0.08；不同步源 Frame
+      const threshold = 0.08;
+      const includeSourceFrame = false;
       
       // 重置取消状态
       isSyncCancelled = false;
@@ -924,11 +999,13 @@
       document.getElementById('syncBtn').disabled = true;
       document.getElementById('cancelBtn').style.display = 'block';
       document.getElementById('progressContainer').style.display = 'block';
-      document.getElementById('loading').style.display = 'none';
+      var loadingEl = document.getElementById('loading');
+      if (loadingEl) loadingEl.style.display = 'none';
       updateProgress(0, '准备同步...');
       
       // 添加同步状态样式
-      document.querySelector('.container').classList.add('syncing');
+      var containerEl = document.querySelector('.container');
+      if (containerEl) containerEl.classList.add('syncing');
       
       // 确保鼠标指针不被禁用
       document.body.style.cursor = 'default';
@@ -942,7 +1019,8 @@
       document.getElementById('progressContainer').style.display = 'none';
       
       // 移除同步状态样式
-      document.querySelector('.container').classList.remove('syncing');
+      var containerEl = document.querySelector('.container');
+      if (containerEl) containerEl.classList.remove('syncing');
       
       // 重置鼠标指针
       document.body.style.cursor = '';
@@ -951,14 +1029,14 @@
     
     // 更新进度
     function updateProgress(percentage, text, details) {
-      document.getElementById('progressFill').style.width = percentage + '%';
-      document.getElementById('progressText').textContent = text;
-      
-      if (details) {
-        document.getElementById('progressDetails').textContent = details;
-      } else {
-        document.getElementById('progressDetails').textContent = percentage + '%';
-      }
+      var fill = document.getElementById('progressFill');
+      if (fill) fill.style.width = percentage + '%';
+      var pt = document.getElementById('progressText');
+      if (pt) pt.textContent = text;
+      var pd = document.getElementById('progressDetails');
+      if (pd) pd.textContent = details || (percentage + '%');
+      var pp = document.getElementById('progressPercent');
+      if (pp) pp.textContent = details || (percentage + '%');
     }
     
     function toggleConfig() {
@@ -982,6 +1060,8 @@
       }
       
       apiKey = key;
+      // 同步保存到本地 localStorage（跨文件/跨账号同机持久）
+      try { localStorage.setItem('deepseekApiKey', key); } catch (e) {}
       
       // 使用 Figma 的 clientStorage 保存 API Key
       parent.postMessage({ 
@@ -1021,17 +1101,17 @@
       const generateBtn = document.getElementById('generateBtn');
       
       if (!prompt) {
-        figma.notify('请输入文案需求描述', { error: true });
+        showStatus('请输入文案需求描述', 'error');
         return;
       }
       
       if (!apiKey) {
-        figma.notify('请先配置 API Key', { error: true });
+        showStatus('请先配置 API Key', 'error');
         return;
       }
       
       if (selectedTextNodes.length === 0) {
-        figma.notify('请先选择文本图层', { error: true });
+        showStatus('请先选择文本图层', 'error');
         return;
       }
       
@@ -1049,7 +1129,162 @@
         } 
       }, '*');
     }
-    
+
+    // ========== 字体替换逻辑 ==========
+    let fontMap = {}; // family => { styles: Set }
+    let familyKeys = [];
+
+    function renderFontDropdown(query) {
+      const dd = document.getElementById('fontDropdown');
+      const input = document.getElementById('fontInput');
+      if (!dd || !input) return;
+      const q = (query || '').trim().toLowerCase();
+      const pool = familyKeys.slice();
+      const matches = pool.filter(function(k){ return !q || k.toLowerCase().includes(q); }).slice(0, 200);
+      dd.innerHTML = '';
+      if (matches.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'font-option empty';
+        empty.textContent = '暂无可用字体';
+        dd.appendChild(empty);
+        dd.style.display = 'block';
+        return;
+      }
+      const recommendedOrder = ['SF Pro Text', 'PingFang SC'];
+      const recSet = new Set(recommendedOrder);
+      let ordered = matches;
+      if (q === '') {
+        const rec = [];
+        for (let i = 0; i < recommendedOrder.length; i++) {
+          const name = recommendedOrder[i];
+          if (matches.indexOf(name) !== -1) rec.push(name);
+        }
+        const rest = matches.filter(function(name){ return !recSet.has(name); });
+        ordered = rec.concat(rest);
+      }
+      for (let i = 0; i < ordered.length; i++) {
+        const name = ordered[i];
+        const opt = document.createElement('div');
+        opt.className = 'font-option';
+        const label = document.createElement('span');
+        label.textContent = name;
+        opt.appendChild(label);
+        if (q === '' && recSet.has(name)) {
+          const badge = document.createElement('span');
+          badge.className = 'badge-rec';
+          badge.textContent = '推荐';
+          opt.appendChild(badge);
+        }
+        opt.onclick = function(){ input.value = name; dd.style.display = 'none'; updateReplaceButtonState(); };
+        dd.appendChild(opt);
+      }
+      dd.style.display = 'block';
+    }
+
+    function updateReplaceButtonState() {
+      const btn = document.getElementById('replaceBtn');
+      const sel = document.getElementById('fontInput');
+      if (!btn || !sel) return;
+      const hasSelection = (selectedFrames && selectedFrames.length >= 1);
+      const pick = fontMap[sel.value];
+      btn.disabled = !(hasSelection && pick);
+    }
+
+    function startReplaceFonts() {
+      const sel = document.getElementById('fontInput');
+      if (!sel || !sel.value) { showStatus('请选择字体', 'error'); return; }
+      const pick = fontMap[sel.value];
+      if (!pick) { showStatus('请输入或选择有效字体', 'error'); return; }
+      document.getElementById('replaceBtn').disabled = true;
+      showReplaceProgress(0, '准备替换...', '0%');
+      parent.postMessage({
+        pluginMessage: {
+          type: 'replace-font-family',
+          fontFamily: sel.value,
+          containerIds: selectedFrames.map(function(f){ return f.id; })
+        }
+      }, '*');
+    }
+
+    // 系统字体列表填充
+    function populateFonts(fonts) {
+      fontMap = {}; familyKeys = [];
+      const seenFamilies = new Set();
+      for (let i = 0; i < fonts.length; i++) {
+        const f = fonts[i];
+        const fam = f.family;
+        if (!fontMap[fam]) fontMap[fam] = { styles: new Set() };
+        fontMap[fam].styles.add(f.style);
+        if (!seenFamilies.has(fam)) {
+          seenFamilies.add(fam);
+          familyKeys.push(fam);
+        }
+      }
+      // 启用输入并刷新下拉
+      const input = document.getElementById('fontInput');
+      if (input) input.disabled = (familyKeys.length === 0);
+      renderFontDropdown((input && input.value) || '');
+      updateReplaceButtonState();
+    }
+
+    function showReplaceProgress(pct, text, details) {
+      const wrap = document.getElementById('replaceProgress');
+      const fill = document.getElementById('replaceProgressFill');
+      const label = document.getElementById('replaceProgressText');
+      const quick = document.getElementById('quickRecommend');
+      if (wrap) wrap.style.display = 'flex';
+      if (quick) quick.style.display = 'none';
+      if (fill) fill.style.width = (pct || 0) + '%';
+      if (label) label.textContent = (text || '替换中...') + ' ' + (details || (pct + '%'));
+    }
+    function hideReplaceProgress() {
+      const wrap = document.getElementById('replaceProgress');
+      if (wrap) wrap.style.display = 'none';
+      const quick = document.getElementById('quickRecommend');
+      if (quick) quick.style.display = 'flex';
+    }
+
+    // 推荐字体快捷替换
+    function quickReplaceFamily(family) {
+      if (!selectedFrames || selectedFrames.length < 1) {
+        showStatus('请先选择 Frame 或 Section', 'error');
+        return;
+      }
+      const input = document.getElementById('fontInput');
+      if (input) input.value = family;
+      showReplaceProgress(0, '准备替换...', '0%');
+      parent.postMessage({
+        pluginMessage: {
+          type: 'replace-font-family',
+          fontFamily: family,
+          containerIds: selectedFrames.map(function(f){ return f.id; })
+        }
+      }, '*');
+    }
+    // UI 状态提示函数，避免未定义导致脚本中断
+    function showStatus(message, type) {
+      try {
+        const pc = document.getElementById('progressContainer');
+        const pd = document.getElementById('progressDetails');
+        if (pc && pc.style.display !== 'none' && pd) {
+          pd.textContent = message;
+        } else {
+          const infoEl = currentTab === 'sync'
+            ? document.getElementById('frame-selection-info')
+            : document.getElementById('selection-info');
+          if (infoEl) infoEl.textContent = message;
+        }
+        console[type === 'error' ? 'error' : (type === 'success' ? 'log' : 'info')](message);
+      } catch (e) {
+        console.warn('显示状态失败:', e, message);
+      }
+    }
+    function hideStatus() {
+      try {
+        const pd = document.getElementById('progressDetails');
+        if (pd) pd.textContent = '';
+      } catch (e) {}
+    }
     
   </script>
 </body>
