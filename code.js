@@ -574,11 +574,14 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
 
     // 获取源Frame的所有文本节点
     const sourceTextNodes = getTextNodesInFrame(sourceFrame);
+    console.log(`源Frame "${sourceFrame.name}" 包含 ${sourceTextNodes.length} 个文本节点`);
     
     let matchCount = 0;
     let replaceCount = 0;
     let unmatchCount = 0;
     let skippedCount = 0;
+    let lockedCount = 0;
+    let componentCount = 0;
 
     // 确定要同步的目标Frame列表
     const targetFrames = includeSourceFrame ? frames : frames.filter(frame => frame.id !== sourceFrameId);
@@ -586,6 +589,7 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     // 遍历目标Frame进行同步
     for (const targetFrame of targetFrames) {
       const targetTextNodes = getTextNodesInFrame(targetFrame);
+      console.log(`目标Frame "${targetFrame.name}" 包含 ${targetTextNodes.length} 个文本节点`);
       
       // 为源Frame的每个文本节点找到最佳匹配
       for (const sourceTextNode of sourceTextNodes) {
@@ -615,15 +619,27 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
               if (contentToWrite) {
                 bestMatch.node.characters = contentToWrite;
                 replaceCount++;
+                console.log(`成功写入: ${bestMatch.node.name} = "${contentToWrite}"`);
               } else {
                 unmatchCount++;
+                console.log(`内容为空，跳过: ${bestMatch.node.name}`);
               }
             } catch (error) {
               console.warn(`写入失败: ${bestMatch.node.name}`, error);
               skippedCount++;
             }
           } else {
-            skippedCount++;
+            // 详细记录跳过原因
+            if (bestMatch.node.locked) {
+              lockedCount++;
+              console.log(`跳过锁定节点: ${bestMatch.node.name}`);
+            } else if (bestMatch.node.type === 'INSTANCE') {
+              componentCount++;
+              console.log(`跳过组件实例: ${bestMatch.node.name}`);
+            } else {
+              skippedCount++;
+              console.log(`跳过其他原因: ${bestMatch.node.name}`);
+            }
           }
         } else {
           unmatchCount++;
@@ -637,16 +653,23 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
       matchCount: matchCount,
       replaceCount: replaceCount,
       unmatchCount: unmatchCount,
-      skippedCount: skippedCount
+      skippedCount: skippedCount,
+      lockedCount: lockedCount,
+      componentCount: componentCount
     });
 
-    // 显示通知
-    const message = `匹配 ${matchCount} 处，成功写入 ${replaceCount}，未匹配 ${unmatchCount}`;
-    if (skippedCount > 0) {
-      figma.notify(`${message}，跳过 ${skippedCount} 个锁定/组件节点`);
-    } else {
-      figma.notify(message);
+    // 显示详细通知
+    let message = `匹配 ${matchCount} 处，成功写入 ${replaceCount}，未匹配 ${unmatchCount}`;
+    if (lockedCount > 0 || componentCount > 0 || skippedCount > 0) {
+      const skipDetails = [];
+      if (lockedCount > 0) skipDetails.push(`锁定 ${lockedCount}`);
+      if (componentCount > 0) skipDetails.push(`组件 ${componentCount}`);
+      if (skippedCount > 0) skipDetails.push(`其他 ${skippedCount}`);
+      message += `，跳过 ${skipDetails.join('、')} 个`;
     }
+    
+    figma.notify(message);
+    console.log(`同步完成: ${message}`);
 
   } catch (error) {
     console.error('多帧同步失败:', error);
@@ -682,10 +705,12 @@ function findBestTextMatch(baseTextNode, targetTextNodes, threshold) {
   
   for (const targetNode of targetTextNodes) {
     let score = Infinity;
+    let matchMethod = 'none';
     
     // 1. 同名优先
     if (baseTextNode.name === targetNode.name) {
       score = 0; // 同名匹配优先级最高
+      matchMethod = 'name';
     } else {
       // 2. 相对位置匹配
       const baseFrame = getParentFrame(baseTextNode);
@@ -700,8 +725,12 @@ function findBestTextMatch(baseTextNode, targetTextNodes, threshold) {
           Math.pow(basePos.y - targetPos.y, 2)
         );
         
-        if (distance <= threshold) {
+        // 放宽阈值，提高匹配成功率
+        const adjustedThreshold = Math.max(threshold, 0.15); // 最小阈值 0.15
+        
+        if (distance <= adjustedThreshold) {
           score = distance; // 距离越小，分数越低（优先级越高）
+          matchMethod = 'position';
         }
       }
     }
@@ -711,9 +740,16 @@ function findBestTextMatch(baseTextNode, targetTextNodes, threshold) {
       bestMatch = {
         node: targetNode,
         score: score,
-        method: score === 0 ? 'name' : 'position'
+        method: matchMethod
       };
     }
+  }
+  
+  // 添加调试信息
+  if (bestMatch) {
+    console.log(`匹配成功: ${baseTextNode.name} -> ${bestMatch.node.name} (${bestMatch.method}, score: ${bestMatch.score.toFixed(4)})`);
+  } else {
+    console.log(`未找到匹配: ${baseTextNode.name}`);
   }
   
   return bestMatch;

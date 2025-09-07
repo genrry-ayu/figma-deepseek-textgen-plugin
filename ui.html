@@ -358,9 +358,25 @@
       <div class="status info" style="font-size: 11px; line-height: 1.4;">
         <strong>匹配规则：</strong><br>
         • 同名优先：文本节点 name 完全一致<br>
-        • 相对位置：计算归一化坐标的欧氏距离<br>
+        • 相对位置：计算归一化坐标的欧氏距离（最小阈值 0.15）<br>
         • 源Frame优先：以用户选择的源Frame的文本为准<br>
         • 空值处理：源Frame为空时使用第一个非空候选
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">🔍 调试信息</div>
+      <div class="status info" style="font-size: 10px; line-height: 1.3;">
+        <strong>常见问题：</strong><br>
+        • 锁定节点：无法修改被锁定的文本节点<br>
+        • 组件实例：组件内的文本节点无法直接修改<br>
+        • 位置偏差：文本节点位置差异过大，无法匹配<br>
+        • 名称不同：文本节点名称不一致且位置不匹配<br>
+        <br>
+        <strong>解决方案：</strong><br>
+        • 解锁节点：在图层面板中解锁相关节点<br>
+        • 调整阈值：增大匹配阈值（如 0.2）提高匹配率<br>
+        • 检查名称：确保对应文本节点名称一致
       </div>
     </div>
     
@@ -428,7 +444,15 @@
           }
           break;
         case 'sync-summary':
-          showStatus(`同步完成：匹配 ${msg.matchCount} 处，成功写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`, 'success');
+          let summaryMessage = `同步完成：匹配 ${msg.matchCount} 处，成功写入 ${msg.replaceCount}，未匹配 ${msg.unmatchCount}`;
+          if (msg.lockedCount > 0 || msg.componentCount > 0 || msg.skippedCount > 0) {
+            const skipDetails = [];
+            if (msg.lockedCount > 0) skipDetails.push(`锁定 ${msg.lockedCount}`);
+            if (msg.componentCount > 0) skipDetails.push(`组件 ${msg.componentCount}`);
+            if (msg.skippedCount > 0) skipDetails.push(`其他 ${msg.skippedCount}`);
+            summaryMessage += `，跳过 ${skipDetails.join('、')} 个`;
+          }
+          showStatus(summaryMessage, 'success');
           hideLoading();
           break;
         case 'sync-error':
