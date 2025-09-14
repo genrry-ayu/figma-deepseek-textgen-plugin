@@ -11,6 +11,8 @@ figma.showUI(__html__, {
 
 // 存储选中的文本节点
 let selectedTextNodes = [];
+// 记录容器的“用户选择顺序”，用于稳定排序下拉
+let selectionOrder = [];
 
 // 同步取消标志
 let isSyncCancelled = false;
@@ -80,7 +82,7 @@ figma.ui.onmessage = async (msg) => {
           const timeoutPromise = new Promise(function(_, reject) {
             setTimeout(function() {
               reject(new Error('同步超时，请重试'));
-            }, 30000); // 30秒超时
+            }, 120000); // 超时提高到 120 秒，适配大型页面
           });
           
           // 检查是否使用高性能位置键算法
@@ -131,11 +133,64 @@ figma.ui.onmessage = async (msg) => {
   }
 };
 
-// 处理选择变化
-function handleSelectionChange() {
+// 判断节点是否可作为同步容器
+function isSyncContainer(node) {
+  if (!node) return false;
+  const t = node.type;
+  return t === 'FRAME' || t === 'GROUP' || t === 'COMPONENT' || t === 'INSTANCE' || t === 'SECTION';
+}
+
+// 处理选择变化（dynamic-page 需使用异步 API）
+async function handleSelectionChange() {
   const selection = figma.currentPage.selection;
   selectedTextNodes = selection.filter(node => node.type === 'TEXT');
-  const selectedFrames = selection.filter(node => node.type === 'FRAME' || node.type === 'SECTION');
+  // 将选择范围扩展到“任意对象”：
+  // - 直接选中的容器 (FRAME/GROUP/COMPONENT/INSTANCE/SECTION) 作为候选
+  // - 其它任意对象，映射到其最近的父容器，去重
+  const frameSet = new Set();
+  const containerIdsInThisSelection = [];
+  for (let i = 0; i < selection.length; i++) {
+    const node = selection[i];
+    try {
+      if (isSyncContainer(node)) { frameSet.add(node.id); }
+      else { const pf = getParentFrame(node); if (pf) frameSet.add(pf.id); }
+    } catch (_) {}
+  }
+  // 记录本次选择遍历顺序（作为 Set 插入顺序的备份）
+  for (const id of frameSet) if (containerIdsInThisSelection.indexOf(id) === -1) containerIdsInThisSelection.push(id);
+
+  // 读取节点 + 位置（左上角）供框选排序
+  const idsAll = Array.from(frameSet);
+  const nodeInfos = [];
+  for (let i = 0; i < idsAll.length; i++) {
+    try {
+      const n = await figma.getNodeByIdAsync(idsAll[i]);
+      if (!n || !isSyncContainer(n)) continue;
+      let x = 0, y = 0;
+      try { const p = apply(n.absoluteTransform, 0, 0); x = p.x; y = p.y; } catch (_) { try { x = n.x || 0; y = n.y || 0; } catch (_) {} }
+      nodeInfos.push({ id: idsAll[i], node: n, x, y });
+    } catch (_) {}
+  }
+
+  const presentSet = new Set(nodeInfos.map(function(it){ return it.id; }));
+  const keep = [];
+  for (let i = 0; i < selectionOrder.length; i++) {
+    const id = selectionOrder[i];
+    if (presentSet.has(id)) keep.push(id);
+  }
+  let missing = nodeInfos.filter(function(it){ return selectionOrder.indexOf(it.id) === -1; });
+  // 若一次加入多个（常见于框选），按阅读顺序排序；单个则保留点击顺序
+  if (missing.length > 1) missing.sort(function(a,b){ return (a.y - b.y) || (a.x - b.x); });
+  const orderedIds = keep.concat(missing.map(function(it){ return it.id; }));
+  selectionOrder = orderedIds;
+
+  // 按最终顺序输出容器
+  const byId = new Map(nodeInfos.map(function(it){ return [it.id, it.node]; }));
+  const selectedFrames = [];
+  for (let i = 0; i < orderedIds.length; i++) {
+    const n = byId.get(orderedIds[i]);
+    if (n) selectedFrames.push(n);
+  }
   
   // 发送选择信息到 UI
   figma.ui.postMessage({ 
@@ -161,7 +216,8 @@ function handleSelectionChange() {
 
 // 监听选择变化事件
 figma.on('selectionchange', function() {
-  handleSelectionChange();
+  try { const p = handleSelectionChange(); if (p && typeof p.catch === 'function') p.catch(e => console.error('selectionchange error:', e)); }
+  catch (e) { console.error('selectionchange sync error:', e); }
 });
 
 // 生成文案的主要函数
@@ -173,9 +229,10 @@ async function generateText(prompt, apiKey, nodeIds) {
     }
 
     // 获取要更新的文本节点
-    const textNodes = nodeIds
-      .map(id => figma.getNodeById(id))
-      .filter(node => node && node.type === 'TEXT');
+    const textNodesAll = await Promise.all(
+      (nodeIds || []).map(function(id){ return figma.getNodeByIdAsync(id); })
+    );
+    const textNodes = textNodesAll.filter(function(node){ return node && node.type === 'TEXT'; });
 
     if (textNodes.length === 0) {
       throw new Error('未找到有效的文本节点');
@@ -763,7 +820,7 @@ async function replaceFontsInContainers(fontFamily, fontStyle, containerIds) {
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
-        const node = figma.getNodeById(containerIds[i]);
+        const node = await figma.getNodeByIdAsync(containerIds[i]);
         if (node) containers.push(node);
       }
     } else {
@@ -873,7 +930,7 @@ async function replaceFontFamilyInContainers(fontFamily, containerIds) {
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
-        const node = figma.getNodeById(containerIds[i]);
+        const node = await figma.getNodeByIdAsync(containerIds[i]);
         if (node) containers.push(node);
       }
     } else {
@@ -987,7 +1044,7 @@ async function replaceWithTextStyle(styleId, fontFamily, fontStyle, containerIds
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
-        const node = figma.getNodeById(containerIds[i]);
+        const node = await figma.getNodeByIdAsync(containerIds[i]);
         if (node) containers.push(node);
       }
     } else {
@@ -1056,14 +1113,41 @@ function invert(m) {
 }
 
 function centerInFrame(frame, node) {
-  const abs = node.absoluteTransform;
-  const ctr = apply(abs, node.width / 2, node.height / 2);
-  const inv = invert(frame.absoluteTransform);
-  return apply(inv, ctr.x, ctr.y);
+  try {
+    const abs = node.absoluteTransform;
+    const ctr = apply(abs, (node.width || 0) / 2, (node.height || 0) / 2);
+    const inv = invert(frame.absoluteTransform);
+    return apply(inv, ctr.x, ctr.y);
+  } catch (e) {
+    // 回退：使用局部坐标估算（在父容器坐标系下），避免不可逆矩阵导致崩溃
+    try {
+      return { x: (node.x || 0) + (node.width || 0) / 2, y: (node.y || 0) + (node.height || 0) / 2 };
+    } catch (_) {
+      return { x: 0, y: 0 };
+    }
+  }
+}
+
+// 通用锚点转换：'center' | 'topleft'
+function anchorInFrame(frame, node, anchor) {
+  const mode = (anchor || 'center').toLowerCase();
+  if (mode === 'topleft') {
+    try {
+      const abs = node.absoluteTransform;
+      const pt = apply(abs, 0, 0);
+      const inv = invert(frame.absoluteTransform);
+      return apply(inv, pt.x, pt.y);
+    } catch (e) {
+      try { return { x: (node.x || 0), y: (node.y || 0) }; } catch (_) { return { x: 0, y: 0 }; }
+    }
+  }
+  return centerInFrame(frame, node);
 }
 
 function norm(frame, p) {
-  return { nx: p.x / frame.width, ny: p.y / frame.height };
+  const w = Math.max(1e-6, Number(frame.width) || 0);
+  const h = Math.max(1e-6, Number(frame.height) || 0);
+  return { nx: p.x / w, ny: p.y / h };
 }
 
 // ========== 翻译功能 ==========
@@ -1636,14 +1720,17 @@ async function translateSelection(targetLang, apiKey) {
 // 收集文本节点（优化版本）
 function collectTexts(frame) {
   try {
-    // 先尝试使用递归方式，更稳定
-    return getTextNodesInFrameRecursive(frame);
+    // 先尝试使用递归方式，随后做“深度可见性”过滤
+    const nodes = getTextNodesInFrameRecursive(frame) || [];
+    return nodes.filter(function(n){
+      try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
+    });
   } catch (error) {
     console.warn('递归方式失败，尝试findAllWithCriteria:', error);
     try {
-      const nodes = frame.findAllWithCriteria({ types: ['TEXT'] });
-      return nodes.filter(function(n) {
-        return n.visible !== false;
+      const nodes = frame.findAllWithCriteria({ types: ['TEXT'] }) || [];
+      return nodes.filter(function(n){
+        try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
       });
     } catch (error2) {
       console.error('所有方式都失败:', error2);
@@ -1667,13 +1754,15 @@ function indexFrameByPos(frame, opts) {
   const cell = opts.cell !== undefined ? opts.cell : 0.02;   // 2% 网格
   const useSize = !!opts.useSize;
   const cellSize = opts.cellSize !== undefined ? opts.cellSize : 0.04; // 尺寸格
+  const anchor = (opts.anchor || 'center');
   
-  const texts = collectTexts(frame);
+  // 使用高性能文本节点收集（仅可见文本）
+  const texts = getTextNodesInFrame(frame);
   const infos = [];
   
   for (let i = 0; i < texts.length; i++) {
     const t = texts[i];
-    const p = norm(frame, centerInFrame(frame, t));
+    const p = norm(frame, anchorInFrame(frame, t, anchor));
     let size;
     if (useSize) {
       size = { nw: t.width / frame.width, nh: t.height / frame.height };
@@ -1851,14 +1940,16 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
     // 立即更新进度，确保UI响应
     updateProgress(5, '开始同步...');
     
-    // 使用固定的优化参数
-    const cell = 0.02;      // 2% 网格
-    const tol = 0.06;       // 6% 距离阈值
-    const useSize = true;   // 叠加尺寸维度
-    const nameFirst = true; // 同名优先
-    const nameOnly = false; // 不使用仅同名模式
-    const posOnly = false;  // 不使用仅位置键模式
-    const batch = 100;      // 写入批大小
+    // 解析/合并参数（允许 UI 传入 options 覆盖）
+    const opt = options || {};
+    const cell = (typeof opt.cell === 'number' && opt.cell > 0) ? opt.cell : 0.02;               // 网格尺寸（归一化）
+    const tol = (typeof opt.tol === 'number' && opt.tol > 0) ? opt.tol : (threshold || 0.10);    // 匹配容差
+    const useSize = opt.useSize !== undefined ? !!opt.useSize : true;                             // 是否叠加尺寸维度
+    const nameFirst = opt.nameFirst !== undefined ? !!opt.nameFirst : true;                       // 是否同名优先
+    const nameOnly = opt.nameOnly !== undefined ? !!opt.nameOnly : false;                         // 仅按同名
+    const posOnly = opt.posOnly !== undefined ? !!opt.posOnly : false;                            // 仅按位置
+    const batch = (typeof opt.batchSize === 'number' && opt.batchSize > 0) ? opt.batchSize : 100; // 写入批大小
+    const dryRun = !!opt.dryRun;                                                                   // 预览模式
 
     if (!frameIds || frameIds.length < 2) {
       throw new Error('至少需要选择2个Frame');
@@ -1886,14 +1977,14 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
       console.log(`获取节点 ${i + 1}/${frameIds.length}: ${id}`);
       
       try {
-        const node = figma.getNodeById(id);
+        const node = await figma.getNodeByIdAsync(id);
         console.log(`节点 ${id} 获取结果:`, node ? node.type : 'null');
         
-        if (node && node.type === 'FRAME') {
+        if (node && isSyncContainer(node)) {
           frames.push(node);
-          console.log(`成功添加Frame: ${node.name}`);
+          console.log(`成功添加容器: ${node.name}`);
         } else {
-          console.warn(`节点 ${id} 不是Frame类型或不存在`);
+          console.warn(`节点 ${id} 不是可同步容器或不存在`);
         }
       } catch (error) {
         console.error(`获取节点 ${id} 时出错:`, error);
@@ -1937,7 +2028,7 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
     
     let pivotIndex;
     try {
-      pivotIndex = indexFrameByPos(sourceFrame, { cell: cell, useSize: useSize });
+      pivotIndex = indexFrameByPos(sourceFrame, { cell: cell, useSize: useSize, anchor: opt.anchor });
       if (pivotIndex.infos.length === 0) {
         figma.notify('源Frame中没有文本节点');
         return;
@@ -1972,7 +2063,7 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
       console.log(`构建目标Frame索引: ${frame.name}`);
       
       try {
-        const targetIndex = indexFrameByPos(frame, { cell: cell, useSize: useSize });
+        const targetIndex = indexFrameByPos(frame, { cell: cell, useSize: useSize, anchor: opt.anchor });
         targets.push({
           frame: frame,
           infos: targetIndex.infos,
@@ -2076,6 +2167,23 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
       }
     }
 
+    if (dryRun) {
+      // 干跑模式：仅汇总统计，不写入
+      const msg = `预览完成：匹配 ${pairs} 处，将写入 ${pending.length}，未匹配 ${miss}`;
+      figma.notify(msg);
+      figma.ui.postMessage({
+        type: 'sync-summary',
+        matchCount: pairs,
+        replaceCount: pending.length,
+        unmatchCount: miss,
+        skippedCount: 0,
+        lockedCount: 0,
+        componentCount: 0,
+        dryRun: true
+      });
+      return;
+    }
+
     if (pending.length === 0) {
       figma.notify('同步完成：匹配 ' + pairs + '，无需改动');
       figma.ui.postMessage({
@@ -2100,8 +2208,8 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
 
     updateProgress(90, '写入文本...');
     
-    // 分批写入
-    for (let i = 0; i < pending.length; i += batch) {
+  // 分批写入
+  for (let i = 0; i < pending.length; i += batch) {
       if (isSyncCancelled) {
         figma.ui.postMessage({ type: 'sync-cancelled' });
         return;
@@ -2114,7 +2222,17 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
           w.node.characters = w.text;
           writes++;
         } catch (e) {
-          // 忽略单点失败
+          // 若为组件实例中的文本（绑定到组件属性），尝试改用实例属性覆盖
+          try {
+            const ok = await trySetTextViaInstanceProperty(w.node, w.text);
+            if (ok) {
+              writes++;
+            } else {
+              console.warn('写入失败（实例属性匹配不到）:', w.node.name, e);
+            }
+          } catch (e2) {
+            console.warn('写入失败（实例属性覆盖异常）:', w.node.name, e2);
+          }
         }
       }
       
@@ -2151,7 +2269,7 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
 }
 
 // 简化的多帧同步功能（测试版本）
-async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSourceFrame = false, options = {}) {
+async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSourceFrame = false, options = {}) {
   try {
     console.log('开始同步函数，参数:', { frameIds, sourceFrameId, threshold, includeSourceFrame, options });
     
@@ -2177,9 +2295,9 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     const frames = [];
     for (let i = 0; i < frameIds.length; i++) {
       const id = frameIds[i];
-      const node = figma.getNodeById(id);
+      const node = await figma.getNodeByIdAsync(id);
       console.log(`获取节点 ${id}:`, node ? node.type : 'null');
-      if (node && node.type === 'FRAME') {
+      if (node && isSyncContainer(node)) {
         frames.push(node);
       }
     }
@@ -2291,7 +2409,7 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
         const targetFrame = targetFrames[j];
         try {
           const targetTextNodes = getTextNodesInFrame(targetFrame);
-          const bestMatch = findBestTextMatchSimple(sourceNode, targetTextNodes, threshold, nameOnly);
+          const bestMatch = findBestTextMatchSimple(sourceNode, targetTextNodes, threshold, nameOnly, options && options.anchor || 'center');
           
           if (bestMatch) {
             matchedNodes.push(bestMatch);
@@ -2396,7 +2514,7 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
     // 分批写入，避免阻塞UI
     updateProgress(85, '写入文本内容...');
     console.log(`开始分批写入，每批 ${batchSize} 个节点`);
-    for (let i = 0; i < pendingWrites.length; i += batchSize) {
+  for (let i = 0; i < pendingWrites.length; i += batchSize) {
       // 检查是否已取消
       if (isSyncCancelled) {
         figma.ui.postMessage({ type: 'sync-cancelled' });
@@ -2410,7 +2528,17 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
           write.node.characters = write.content;
           totalWrites++;
         } catch (error) {
-          console.warn(`写入失败: ${write.node.name}`, error);
+          // 组件实例兜底：通过实例属性覆盖
+          try {
+            const ok = await trySetTextViaInstanceProperty(write.node, write.content);
+            if (ok) {
+              totalWrites++;
+            } else {
+              console.warn(`写入失败（实例属性匹配不到）: ${write.node.name}`, error);
+            }
+          } catch (e2) {
+            console.warn(`写入失败（实例属性覆盖异常）: ${write.node.name}`, e2);
+          }
         }
       }
       
@@ -2591,9 +2719,9 @@ function createTextIndex(frame, cellSize = 0.06) {
 }
 
 // 简化的匹配算法
-function findBestTextMatchSimple(baseTextNode, targetTextNodes, threshold, nameOnly = false) {
+function findBestTextMatchSimple(baseTextNode, targetTextNodes, threshold, nameOnly = false, anchor = 'center') {
   const baseName = (baseTextNode.name || '').trim();
-  const basePos = getNormalizedPosition(baseTextNode, getParentFrame(baseTextNode));
+  const basePos = getNormalizedPosition(baseTextNode, getParentFrame(baseTextNode), anchor);
   
   let bestMatch = null;
   let bestScore = Infinity;
@@ -2609,7 +2737,7 @@ function findBestTextMatchSimple(baseTextNode, targetTextNodes, threshold, nameO
       matchMethod = 'name';
     } else if (!nameOnly) {
       // 2. 位置匹配
-      const targetPos = getNormalizedPosition(targetNode, getParentFrame(targetNode));
+      const targetPos = getNormalizedPosition(targetNode, getParentFrame(targetNode), anchor);
       const distance = Math.sqrt(
         Math.pow(basePos.x - targetPos.x, 2) + 
         Math.pow(basePos.y - targetPos.y, 2)
@@ -2640,7 +2768,7 @@ function findBestTextMatchSimple(baseTextNode, targetTextNodes, threshold, nameO
 function getParentFrame(node) {
   let current = node.parent;
   while (current) {
-    if (current.type === 'FRAME') {
+    if (current.type === 'FRAME' || current.type === 'GROUP' || current.type === 'COMPONENT' || current.type === 'INSTANCE' || current.type === 'SECTION') {
       return current;
     }
     current = current.parent;
@@ -2649,16 +2777,11 @@ function getParentFrame(node) {
 }
 
 // 获取归一化位置
-function getNormalizedPosition(textNode, frame) {
-  const nodeCenter = {
-    x: textNode.x + textNode.width / 2,
-    y: textNode.y + textNode.height / 2
-  };
-  
-  return {
-    x: nodeCenter.x / frame.width,
-    y: nodeCenter.y / frame.height
-  };
+function getNormalizedPosition(textNode, frame, anchor) {
+  const p = anchorInFrame(frame, textNode, anchor);
+  const w = Math.max(1e-6, Number(frame.width) || 0);
+  const h = Math.max(1e-6, Number(frame.height) || 0);
+  return { x: p.x / w, y: p.y / h };
 }
 
 // 检查是否可以写入节点
@@ -2668,10 +2791,8 @@ function canWriteToNode(node) {
     return false;
   }
   
-  // 检查是否是组件实例
-  if (node.type === 'INSTANCE') {
-    return false;
-  }
+  // 不再简单排除实例：文本位于实例内部时通常允许覆盖；
+  // 对于绑定到组件属性的文本，写入阶段会使用实例属性兜底。
   
   // 检查父节点是否被锁定
   let current = node.parent;
@@ -2685,6 +2806,59 @@ function canWriteToNode(node) {
   return true;
 }
 
+// 尝试通过“组件实例属性”覆盖文本（适配绑定到文本属性的情况）
+async function trySetTextViaInstanceProperty(textNode, value) {
+  try {
+    // 仅处理 TEXT 节点
+    if (!textNode || textNode.type !== 'TEXT') return false;
+    // 向上查找最近的实例
+    let inst = textNode.parent;
+    while (inst && inst.type !== 'INSTANCE') inst = inst.parent;
+    if (!inst || typeof inst.setProperties !== 'function') return false;
+
+    const props = inst.componentProperties || {};
+    const keys = Object.keys(props);
+    if (keys.length === 0) return false;
+
+    // 候选：TEXT 类型的属性
+    const textKeys = keys.filter(function(k){
+      const p = props[k];
+      const t = p && (p.type || p.valueType || p.defaultValueType);
+      return p && (p.type === 'TEXT' || t === 'TEXT' || typeof p.value === 'string');
+    });
+    if (textKeys.length === 0) return false;
+
+    const currentText = (textNode.characters || '').trim();
+
+    // 1) 优先匹配当前值相等的属性（最可靠）
+    let cand = textKeys.find(function(k){
+      try {
+        var v = (props[k] && props[k].value);
+        if (v === undefined || v === null) v = '';
+        return ('' + v).trim() === currentText;
+      } catch (_) { return false; }
+    });
+
+    // 2) 次选：按名称近似匹配
+    if (!cand) {
+      const name = (textNode.name || '').toLowerCase();
+      cand = textKeys.find(function(k){ return (k || '').toLowerCase().includes(name) && name.length > 0; });
+    }
+
+    // 3) 兜底：只有一个 TEXT 属性时直接使用
+    if (!cand && textKeys.length === 1) cand = textKeys[0];
+
+    if (!cand) return false;
+
+    // 设置实例属性
+    const patch = {}; patch[cand] = value;
+    inst.setProperties(patch);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 // 初始化时检查选择和加载 API Key
-handleSelectionChange();
+try { const p0 = handleSelectionChange(); if (p0 && typeof p0.catch === 'function') p0.catch(e => console.error('init handleSelectionChange error:', e)); } catch (e) { console.error('init selection error:', e); }
 loadApiKey();

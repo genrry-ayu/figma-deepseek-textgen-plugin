@@ -1,6 +1,6 @@
 {
   "name": "DeepSeek 文案生成助手",
-  "id": "textgen-figma-plugin",
+  "id": "1548969601321496100",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
@@ -9,6 +9,7 @@
   "editorType": [
     "figma"
   ],
+  "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
       "https://api.deepseek.com"

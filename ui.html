@@ -108,8 +108,7 @@
     .button:hover { background: #333333; }
     .button:active { background: #000000; }
     .button:disabled { background: #dddddd; color: #999999; cursor: not-allowed; }
-    .button.secondary { background: #f5f5f5; color: #1a1a1a; border: 1px solid #dddddd; }
-    .button.secondary:hover { background: #eeeeee; }
+    /* 废弃：老的次要按钮样式（已由 .btn-secondary 统一替代） */
     
     /* 次要按钮（统一样式） */
     .btn-secondary {
@@ -134,74 +133,14 @@
     .btn-secondary:disabled { color: #AAAAAA; cursor: not-allowed; }
     
     
-    .selection-info {
-      background: #f0f8ff;
-      border: 1px solid #b3d9ff;
-      border-radius: 4px;
-      padding: 8px;
-      margin-bottom: 12px;
-      font-size: 11px;
-      color: #0066cc;
-    }
+    /* 废弃：老的 selection-info 提示样式，避免与新规范冲突（保留占位，故不生效样式） */
+    .selection-info {}
     
     
     
-    .progress-container {
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 4px;
-      margin: 10px 0;
-      border: 1px solid #e0e0e0;
-      /* 确保鼠标指针不被禁用 */
-      pointer-events: auto;
-      cursor: default;
-    }
+    /* 清理：移除旧版通用进度条样式（组件化进度已在各模块下定义） */
     
-    .progress-bar {
-      width: 100%;
-      height: 10px;
-      background-color: #e0e0e0;
-      border-radius: 4px;
-      overflow: hidden;
-      margin-bottom: 10px;
-      /* 确保进度条可以交互 */
-      pointer-events: auto;
-    }
-    
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #007AFF, #5AC8FA);
-      border-radius: 4px;
-      transition: width 0.2s ease;
-      width: 0%;
-      /* 添加动画效果 */
-      animation: progressPulse 2s ease-in-out infinite;
-    }
-    
-    @keyframes progressPulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.8; }
-    }
-    
-    .progress-text {
-      font-size: 12px;
-      color: #333;
-      text-align: center;
-      font-weight: 500;
-      margin-bottom: 5px;
-    }
-    
-    .progress-details {
-      font-size: 12px;
-      color: #666;
-      text-align: center;
-      margin-top: 5px;
-    }
-    
-    .cancel-button {
-      background-color: #ff4444 !important;
-      color: white !important;
-    }
+    /* 清理：旧的取消按钮样式（已统一为 .btn-secondary） */
     
     /* 确保UI在同步过程中保持响应性 */
     .container {
@@ -210,12 +149,7 @@
       transform: translateZ(0);
     }
     
-    /* 进度条动画优化 */
-    .progress-fill {
-      /* 使用GPU加速 */
-      transform: translateZ(0);
-      will-change: width;
-    }
+    /* 清理：去除重复的 .progress-fill 定义（各模块独立样式中包含） */
     
     /* 确保所有交互元素保持可用 */
     button, input, select, label {
@@ -251,7 +185,7 @@
     
     .api-config-content {
       display: flex;
-      gap: 10px;
+      gap: 8px; /* 与规范一致：输入与按钮间距 8px */
       align-items: flex-start;
     }
     
@@ -333,9 +267,7 @@
     }
     
     /* 选择状态区域 */
-    .selection-status-section {
-      margin-bottom: 20px;
-    }
+    .selection-status-section { margin-bottom: 0; }
     
     .selection-status-header {
       margin-bottom: 4px;
@@ -419,61 +351,7 @@
       border-color: #999999;
     }
     
-    /* 生成按钮 */
-    .generate-button-container {
-      display: flex;
-      justify-content: center;
-      margin-top: 20px;
-    }
-    
-    .generate-button {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 278px;
-      height: 32px;
-      padding: 6px 10px;
-      border: none;
-      border-radius: 4px;
-      background: #111111;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .generate-button:hover:not(:disabled) {
-      background: #333333;
-    }
-    
-    .generate-button:active:not(:disabled) {
-      background: #000000;
-    }
-    
-    .generate-button:disabled {
-      background: #dddddd;
-      cursor: not-allowed;
-    }
-    
-    .generate-button:disabled .generate-button-text {
-      color: #999999;
-    }
-    
-    .generate-button.loading {
-      background: #666666;
-      cursor: not-allowed;
-    }
-    
-    .generate-button.loading .generate-button-text {
-      color: #cccccc;
-    }
-    
-    .generate-button-text { 
-      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 12px;
-      font-weight: 400;
-      line-height: 17px;
-      color: white;
-      white-space: nowrap;
-    }
+    /* 清理：老的 generate-button 样式（已由 .gen-actions/.gen-primary 取代） */
     
     .cancel-button:hover {
       background-color: #cc3333 !important;
@@ -651,10 +529,18 @@
         width: 280px;
         min-height: 38px;
       }
-      #syncContent .sync-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #222222; }
       #syncContent .sync-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
       #syncContent .sync-select,
       #syncContent .sync-input { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
+      /* 下拉与翻译模块保持一致的箭头与内边距 */
+      #syncContent .sync-select {
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4' fill='none'><path d='M1 0.5L4 3.5L7 0.5' stroke='%23AAAAAA' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+        background-repeat: no-repeat; background-size: 8px 4px;
+        background-position: right 12px center;
+        padding-right: 28px;
+      }
       #syncContent .sync-select::placeholder,
       #syncContent .sync-input::placeholder { color: #CCCCCC; }
       #syncContent .sync-actions { padding-top: 8px; }
@@ -712,7 +598,17 @@
       #translateContent .tr-field { display: flex; flex-direction: column; gap: 4px; }
       #translateContent .tr-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
       #translateContent .tr-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
-      #translateContent .tr-select { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
+      #translateContent .tr-select {
+        height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px;
+        padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        width: 100%; background: #FFFFFF; color: #1A1A1A;
+        /* 自定义箭头，向左偏移 6px */
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4' fill='none'><path d='M1 0.5L4 3.5L7 0.5' stroke='%23AAAAAA' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+        background-repeat: no-repeat; background-size: 8px 4px;
+        background-position: right 12px center; /* 在 14px 基础上向右收回 2px */
+        padding-right: 28px; /* 预留空间，避免文字压到箭头 */
+      }
       #translateContent .tr-actions { padding-top: 8px; }
       #translateContent .tr-button { width: 100%; height: 25px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
       #translateContent .tr-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
@@ -772,11 +668,12 @@
     <style>
       #fontContent .font-panel { display: flex; flex-direction: column; gap: 24px; }
       #fontContent .font-field { display: flex; flex-direction: column; gap: 4px; }
+      #fontContent .font-field.font-replace { gap: 8px; }
       #fontContent .font-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
       #fontContent .font-select, #fontContent .font-input { width: 100%; height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 0 12px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; background: #FFFFFF; }
       #fontContent .font-select:disabled, #fontContent .font-input:disabled { color: #AAAAAA; }
       #fontContent .font-combobox { position: relative; width: 100%; }
-      #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 4px; max-height: 720px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+      #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 4px; height: 264px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
       #fontContent .font-option { padding: 8px 12px; cursor: pointer; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; display: flex; align-items: center; }
       #fontContent .font-option:hover { background: #F5F5F5; }
       #fontContent .font-option.empty { color:#AAAAAA; cursor: default; }
@@ -787,25 +684,34 @@
       #fontContent .font-progress-text { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
       #fontContent .font-progress-bar { position: relative; width: 100%; height: 6px; background: #E5E5E5; border-radius: 3px; overflow: hidden; }
       #fontContent .font-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; transition: width .2s ease; }
-      #fontContent .font-quick { display:flex; gap:12px; }
-      #fontContent .font-quick .font-button { height: 25px; flex:1; }
+      #fontContent .font-quick { display:flex; gap:8px; }
+      #fontContent .font-quick .btn-secondary { height: 25px; flex:1; }
+      #fontContent .font-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
+      #fontContent .font-actions { display:flex; flex-direction:column; gap:8px; padding-top:8px; }
       /* 简化为系统字体来源，仅选择字体家族 */
     </style>
     <div class="font-panel">
-      <!-- 仅系统字体来源，无来源切换 -->
+      <!-- 选择状态 -->
       <div class="font-field">
+        <div class="font-label">选择状态</div>
+        <div class="font-hint" id="font-selection-info">请选择任意对象或文本，插件将替换其内部所有文本</div>
+      </div>
+      <!-- 仅系统字体来源，无来源切换 -->
+      <div class="font-field font-replace">
         <div class="font-label">替换为</div>
         <div class="font-combobox">
           <input id="fontInput" class="font-input" placeholder="请选择字体" disabled />
           <div id="fontDropdown" class="font-dropdown" style="display:none;"></div>
         </div>
+        <!-- 推荐快捷按钮（替换进度出现时会隐藏） -->
+        <div id="quickRecommend" class="font-quick">
+          <button class="btn-secondary" onclick="quickReplaceFamily('SF Pro Text')">SF Pro Text</button>
+          <button class="btn-secondary" onclick="quickReplaceFamily('PingFang SC')">PingFang SC</button>
+        </div>
       </div>
-      <button id="replaceBtn" class="font-button" disabled onclick="startReplaceFonts()">开始替换</button>
-      <button id="replaceCancelBtn" class="btn-secondary" style="display:none; margin-top:8px;" onclick="cancelReplace()">停止</button>
-      <!-- 推荐快捷按钮（替换进度出现时会隐藏） -->
-      <div id="quickRecommend" class="font-quick">
-        <button class="font-button" onclick="quickReplaceFamily('SF Pro Text')">SF Pro Text</button>
-        <button class="font-button" onclick="quickReplaceFamily('PingFang SC')">PingFang SC</button>
+      <div class="font-actions">
+        <button id="replaceBtn" class="font-button" disabled onclick="startReplaceFonts()">替换</button>
+        <button id="replaceCancelBtn" class="btn-secondary" style="display:none;" onclick="cancelReplace()">停止</button>
       </div>
       <div id="replaceProgress" class="font-progress">
         <div class="font-progress-text" id="replaceProgressText">替换进度 0%</div>
@@ -854,8 +760,8 @@
       // 字体输入实时更新按钮状态与下拉
       const fontInputEl = document.getElementById('fontInput');
       if (fontInputEl) {
-        fontInputEl.addEventListener('input', function(){ renderFontDropdown(this.value); updateReplaceButtonState(); });
-        fontInputEl.addEventListener('focus', function(){ renderFontDropdown(this.value); });
+        fontInputEl.addEventListener('input', function(){ renderFontDropdown(this.value, true); updateReplaceButtonState(); });
+        fontInputEl.addEventListener('focus', function(){ renderFontDropdown(this.value, true); });
         fontInputEl.addEventListener('change', updateReplaceButtonState);
       }
       document.addEventListener('click', function(e){
@@ -877,6 +783,7 @@
           updateSelectionInfo();
           updateFrameSelectionInfo();
           updateTranslateSelectionInfo();
+          updateFontSelectionInfo();
           updateReplaceButtonState();
           break;
         case 'generate-success':
@@ -1014,6 +921,9 @@
       } else if (tabName === 'font') {
         // 进入字体替换页时刷新系统字体
         parent.postMessage({ pluginMessage: { type: 'list-fonts' } }, '*');
+        // 拉取一次选择，刷新“选择状态”提示
+        parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+        updateFontSelectionInfo();
         updateReplaceButtonState();
       } else if (tabName === 'translate') {
         parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
@@ -1034,16 +944,21 @@
       
       if (selectedFrames.length < 2) {
         info.textContent = '请先在画布中选择至少2个Frame';
-        info.className = 'selection-info';
+        info.className = 'sync-hint';
         syncBtn.disabled = true;
         sourceFrameSelect.disabled = true;
       } else {
         info.textContent = `已选择 ${selectedFrames.length} 个Frame，请选择源Frame`;
-        info.className = 'selection-info';
+        info.className = 'sync-hint';
         sourceFrameSelect.disabled = false;
         
         // 更新源Frame下拉菜单
         updateSourceFrameOptions();
+        // 若尚未选择源Frame，自动选中第一个，减少一次点击
+        if (!sourceFrameSelect.value && selectedFrames.length > 0) {
+          sourceFrameSelect.value = selectedFrames[0].id;
+          updateSourceFrameInfo();
+        }
         
         // 检查是否可以开始同步
         checkSyncButtonState();
@@ -1069,6 +984,9 @@
       // 恢复之前的选择（如果仍然有效）
       if (currentValue && selectedFrames.some(frame => frame.id === currentValue)) {
         sourceFrameSelect.value = currentValue;
+      } else if (!sourceFrameSelect.value && selectedFrames.length > 0) {
+        // 自动选择第一个，提升易用性
+        sourceFrameSelect.value = selectedFrames[0].id;
       }
     }
     
@@ -1139,7 +1057,8 @@
           tol: 0.06,
           nameFirst: true,
           posOnly: false,
-          batchSize: 100
+          batchSize: 100,
+          anchor: 'topleft' // 列表类布局更稳：使用左上角作为锚点
         }
       };
       
@@ -1269,9 +1188,19 @@
       const info = document.getElementById('translate-selection-info');
       const btn = document.getElementById('translateBtn');
       if (!info || !btn) return;
-      const hasAnySelection = (selectedTextNodes.length > 0) || (selectedFrames.length > 0);
+      // 即使选中的是组件/实例等非文本对象，也视为已选择
+      const hasAnySelection = (window.selectedAnyCount && window.selectedAnyCount > 0) || (selectedTextNodes.length > 0) || (selectedFrames.length > 0);
       info.textContent = hasAnySelection ? '已选择对象，准备翻译其内部所有文本' : '请选择任意对象或文本，插件将翻译其内部所有文本';
       btn.disabled = !apiKey; // 允许点击，由插件端校验选择
+    }
+
+    // 字体替换选择状态
+    function updateFontSelectionInfo() {
+      const info = document.getElementById('font-selection-info');
+      if (!info) return;
+      // 即使选中的是组件/实例等非文本对象，也视为已选择
+      const hasAnySelection = (window.selectedAnyCount && window.selectedAnyCount > 0) || (selectedTextNodes && selectedTextNodes.length > 0) || (selectedFrames && selectedFrames.length > 0);
+      info.textContent = hasAnySelection ? '已选择对象，准备替换其内部所有文本' : '请选择任意对象或文本，插件将替换其内部所有文本';
     }
     
     function generateText() {
@@ -1348,7 +1277,7 @@
     let fontMap = {}; // family => { styles: Set }
     let familyKeys = [];
 
-    function renderFontDropdown(query) {
+    function renderFontDropdown(query, shouldShow) {
       const dd = document.getElementById('fontDropdown');
       const input = document.getElementById('fontInput');
       if (!dd || !input) return;
@@ -1361,7 +1290,7 @@
         empty.className = 'font-option empty';
         empty.textContent = '暂无可用字体';
         dd.appendChild(empty);
-        dd.style.display = 'block';
+        if (shouldShow) dd.style.display = 'block';
         return;
       }
       const recommendedOrder = ['SF Pro Text', 'PingFang SC'];
@@ -1392,7 +1321,7 @@
         opt.onclick = function(){ input.value = name; dd.style.display = 'none'; updateReplaceButtonState(); };
         dd.appendChild(opt);
       }
-      dd.style.display = 'block';
+      if (shouldShow) dd.style.display = 'block';
     }
 
     function updateReplaceButtonState() {
@@ -1443,7 +1372,8 @@
       // 启用输入并刷新下拉
       const input = document.getElementById('fontInput');
       if (input) input.disabled = (familyKeys.length === 0);
-      renderFontDropdown((input && input.value) || '');
+      // 初始化不默认展开下拉
+      renderFontDropdown((input && input.value) || '', false);
       updateReplaceButtonState();
     }
 

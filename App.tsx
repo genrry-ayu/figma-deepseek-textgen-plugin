@@ -3,8 +3,8 @@ function ActiveTab() {
   return (
     <div className="box-border content-stretch flex items-center justify-center px-0 py-3 relative shrink-0">
       <div aria-hidden="true" className="absolute border-[#222222] border-[0px_0px_3px] border-solid inset-0 pointer-events-none" />
-      <div className="font-['PingFang_SC:Medium',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#222222] text-[12px] text-nowrap">
-        <p className="leading-[normal] whitespace-pre">生成文本</p>
+      <div className="font-['PingFang_SC:Medium',_sans-serif] not-italic relative shrink-0 text-[#222222] text-[12px] leading-[17px]">
+        <span className="m-0 p-0">生成文本</span>
       </div>
     </div>
   );
@@ -13,8 +13,8 @@ function ActiveTab() {
 function InactiveTab({ children }: { children: string }) {
   return (
     <div className="box-border content-stretch flex items-center justify-center px-0 py-3 relative shrink-0">
-      <div className="font-['PingFang_SC:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#aaaaaa] text-[12px] text-nowrap">
-        <p className="leading-[normal] whitespace-pre">{children}</p>
+      <div className="font-['PingFang_SC:Regular',_sans-serif] not-italic relative shrink-0 text-[#aaaaaa] text-[12px] leading-[17px]">
+        <span className="m-0 p-0">{children}</span>
       </div>
     </div>
   );
@@ -37,7 +37,7 @@ function ApiKeySection() {
   return (
     <div className="content-stretch flex flex-col gap-1 items-start justify-start relative shrink-0 w-full">
       <div className="font-['PingFang_SC:Regular',_sans-serif] not-italic text-[#222222] text-[12px] leading-[17px] w-full">
-        <p className="leading-[normal]">API Key</p>
+        <span className="m-0 p-0">API Key</span>
       </div>
       <div className="content-stretch flex gap-2 items-start justify-start relative shrink-0 w-full">
         <input
@@ -56,7 +56,7 @@ function SelectionStatus() {
   return (
     <div className="content-stretch flex flex-col gap-1 items-start justify-start relative shrink-0 w-full">
       <div className="font-['PingFang_SC:Regular',_sans-serif] text-[12px] leading-[17px] text-[#222222] w-full">
-        <p className="leading-[normal]">选择状态</p>
+        <span className="m-0 p-0">选择状态</span>
       </div>
       <div className="font-['PingFang_SC:Regular',_sans-serif] text-[12px] leading-[17px] text-[#AAAAAA] w-[276px] h-[17px]">
         请选择任意对象或文本，插件将翻译其内部所有文本
@@ -80,8 +80,8 @@ function PromptInputArea() {
 function PromptSection() {
   return (
     <div className="content-stretch flex flex-col gap-1 items-start justify-start relative shrink-0 w-full">
-      <div className="font-['PingFang_SC:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#222222] text-[12px] w-full">
-        <p className="leading-[normal]">文案生成 Prompt</p>
+      <div className="font-['PingFang_SC:Regular',_sans-serif] not-italic relative shrink-0 text-[#222222] text-[12px] leading-[17px] w-full">
+        <span className="m-0 p-0">文案生成 Prompt</span>
       </div>
       <PromptInputArea />
     </div>
@@ -101,13 +101,9 @@ function GenerateSection() {
 // 进度条组件
 function ProgressText() {
   return (
-    <div className="content-stretch flex font-['PingFang_SC:Regular',_sans-serif] gap-1 items-start justify-start leading-[0] not-italic relative shrink-0 text-[#222222] text-[12px] text-nowrap">
-      <div className="relative shrink-0">
-        <p className="leading-[normal] text-nowrap whitespace-pre">进度</p>
-      </div>
-      <div className="relative shrink-0">
-        <p className="leading-[normal] text-nowrap whitespace-pre">75%</p>
-      </div>
+    <div className="content-stretch flex font-['PingFang_SC:Regular',_sans-serif] gap-1 items-start justify-start not-italic relative shrink-0 text-[#222222] text-[12px] leading-[17px]">
+      <span className="m-0 p-0">进度</span>
+      <span className="m-0 p-0">75%</span>
     </div>
   );
 }
