@@ -111,6 +111,28 @@
     .button.secondary { background: #f5f5f5; color: #1a1a1a; border: 1px solid #dddddd; }
     .button.secondary:hover { background: #eeeeee; }
     
+    /* 次要按钮（统一样式） */
+    .btn-secondary {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      padding: 6px 10px;
+      gap: 12px;
+      width: 100%;
+      height: 25px;
+      background: #F2F2F2;
+      border: 0.5px solid #CCCCCC;
+      border-radius: 4px;
+      font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      line-height: 17px;
+      color: #222222;
+      cursor: pointer;
+    }
+    .btn-secondary:disabled { color: #AAAAAA; cursor: not-allowed; }
+    
     
     .selection-info {
       background: #f0f8ff;
@@ -127,7 +149,7 @@
     .progress-container {
       padding: 15px;
       background: #f8f9fa;
-      border-radius: 8px;
+      border-radius: 4px;
       margin: 10px 0;
       border: 1px solid #e0e0e0;
       /* 确保鼠标指针不被禁用 */
@@ -139,7 +161,7 @@
       width: 100%;
       height: 10px;
       background-color: #e0e0e0;
-      border-radius: 5px;
+      border-radius: 4px;
       overflow: hidden;
       margin-bottom: 10px;
       /* 确保进度条可以交互 */
@@ -149,7 +171,7 @@
     .progress-fill {
       height: 100%;
       background: linear-gradient(90deg, #007AFF, #5AC8FA);
-      border-radius: 5px;
+      border-radius: 4px;
       transition: width 0.2s ease;
       width: 0%;
       /* 添加动画效果 */
@@ -162,7 +184,7 @@
     }
     
     .progress-text {
-      font-size: 13px;
+      font-size: 12px;
       color: #333;
       text-align: center;
       font-weight: 500;
@@ -170,7 +192,7 @@
     }
     
     .progress-details {
-      font-size: 11px;
+      font-size: 12px;
       color: #666;
       text-align: center;
       margin-top: 5px;
@@ -211,7 +233,8 @@
     
     /* API Key 配置区域 */
     .api-config-section {
-      margin-bottom: 20px;
+      /* 统一使用外层 24px 间距，不额外增加 */
+      margin-bottom: 0;
     }
     
     .api-config-header {
@@ -220,9 +243,9 @@
     
     .api-config-title {
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: #111111;
     }
     
@@ -239,15 +262,15 @@
       overflow: hidden;
     }
     
-    .api-input {
+    .api-input { 
       width: 100%;
       height: 32px;
       padding: 5px 8px;
       border: 0.5px solid #dddddd;
       border-radius: 4px;
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      line-height: 22px;
+      font-size: 12px;
+      line-height: 17px;
       color: #111111;
       background: transparent;
       outline: none;
@@ -267,7 +290,7 @@
       border-color: #999999;
     }
     
-    .save-button {
+    .save-button { 
       display: flex;
       align-items: center;
       justify-content: center;
@@ -300,11 +323,11 @@
       color: #cccccc;
     }
     
-    .save-button-text {
+    .save-button-text { 
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: #111111;
       white-space: nowrap;
     }
@@ -318,11 +341,11 @@
       margin-bottom: 4px;
     }
     
-    .selection-status-title {
+    .selection-status-title { 
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: #111111;
     }
     
@@ -330,29 +353,30 @@
       margin-top: 4px;
     }
     
-    .selection-status-text {
+    .selection-status-text { 
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: #999999;
       white-space: nowrap;
     }
     
     /* 文案生成区域 */
     .prompt-section {
-      margin-bottom: 20px;
+      /* 统一由外层 24px 控制分组间距 */
+      margin-bottom: 0;
     }
     
     .prompt-header {
       margin-bottom: 4px;
     }
     
-    .prompt-title {
+    .prompt-title { 
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: #111111;
     }
     
@@ -362,19 +386,19 @@
     
     .prompt-input-container {
       position: relative;
-      border-radius: 8px;
+      border-radius: 4px;
       overflow: hidden;
     }
     
-    .prompt-input {
+    .prompt-input { 
       width: 100%;
       height: 100px;
       padding: 7px 8px;
       border: 1px solid #dddddd;
-      border-radius: 8px;
+      border-radius: 4px;
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      line-height: 22px;
+      font-size: 12px;
+      line-height: 17px;
       color: #111111;
       background: transparent;
       outline: none;
@@ -442,11 +466,11 @@
       color: #cccccc;
     }
     
-    .generate-button-text {
+    .generate-button-text { 
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 400;
-      line-height: 22px;
+      line-height: 17px;
       color: white;
       white-space: nowrap;
     }
@@ -459,48 +483,52 @@
       display: none;
     }
     
-    /* 选项卡样式 */
+    /* 选项卡样式（对齐设计稿） */
     .tab-nav {
       position: absolute;
       left: 0;
       top: 0;
       width: 320px;
-      height: 40px;
-      border-bottom: 0.5px solid #dddddd;
+      height: 41px;
+      border-bottom: 0.5px solid #CCCCCC;
       display: flex;
+      flex-direction: row;
+      align-items: center;
+      padding: 0 20px;
+      gap: 18px;
     }
     
     .tab-button {
-      height: 40px;
-      padding: 12px 20px;
+      height: 41px;
+      padding: 12px 0;
       border: none;
       background: none;
       cursor: pointer;
       transition: all 0.2s ease;
       position: relative;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
     }
     
     .tab-button:hover:not(.active) {
       background: rgba(0, 0, 0, 0.02);
     }
     
-    .tab-button.active { background: transparent; }
-    /* 取消激活态下划线 */
-    .tab-button.active::after {
-      display: none;
-    }
+    .tab-button.active { background: transparent; border-bottom-color: #222222; }
     
     .tab-button-text {
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 22px;
-      color: #111111;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 17px;
+      color: #222222;
       white-space: nowrap;
     }
     
     .tab-button:not(.active) .tab-button-text {
-      color: #999999;
+      color: #AAAAAA;
       font-weight: 400;
     }
     
@@ -509,7 +537,7 @@
       display: none;
       position: absolute;
       left: 20px;
-      top: 66px;
+      top: 70px;
       width: 280px;
     }
     
@@ -533,10 +561,26 @@
     <button class="tab-button" id="fontTab" onclick="switchTab('font')">
       <span class="tab-button-text">字体替换</span>
     </button>
+    <button class="tab-button" id="translateTab" onclick="switchTab('translate')">
+      <span class="tab-button-text">翻译</span>
+    </button>
   </div>
   
   <!-- 生成文案选项卡内容 -->
   <div class="tab-content active" id="generateContent">
+    <style>
+      /* 生成文本面板样式，贴合设计稿排版 */
+      #generateContent .gen-panel { display: flex; flex-direction: column; gap: 24px; }
+    #generateContent .gen-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+      #generateContent .gen-primary { height: 25px; background: #222222; color: #FFFFFF; border: none; border-radius: 4px; }
+      #generateContent .gen-secondary { height: 25px; background: #F2F2F2; color: #222222; border: 0.5px solid #CCCCCC; border-radius: 4px; }
+      #generateContent .gen-progress { display: flex; flex-direction: column; gap: 4px; }
+      #generateContent .gen-progress-head { display: flex; flex-direction: row; gap: 4px; align-items: center; }
+      #generateContent .gen-progress-label, #generateContent .gen-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI'; color: #222222; }
+      #generateContent .gen-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
+      #generateContent .gen-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #222222; border-radius: 4px; transition: width .2s ease; }
+    </style>
+    <div class="gen-panel">
     <!-- API Key 配置区域 -->
     <div class="api-config-section">
       <div class="api-config-header">
@@ -574,11 +618,22 @@
       </div>
     </div>
     
-    <!-- 生成按钮 -->
-    <div class="generate-button-container">
-      <button class="generate-button" id="generateBtn" onclick="generateText()" disabled>
-        <span class="generate-button-text">生成文案</span>
-      </button>
+    <!-- 生成/停止按钮（视觉贴合设计稿） -->
+    <div class="gen-actions">
+      <button class="gen-primary" id="generateBtn" onclick="generateText()" disabled>生成</button>
+      <button class="btn-secondary" id="generateStopBtn" style="display:none;" disabled>停止</button>
+    </div>
+    
+    <!-- 进度（仅样式，保留展示用） -->
+    <div class="gen-progress" id="genProgress" style="display:none;">
+      <div class="gen-progress-head">
+        <div class="gen-progress-label">进度</div>
+        <div class="gen-progress-percent" id="genProgressPercent">0%</div>
+      </div>
+      <div class="gen-progress-bar">
+        <div class="gen-progress-fill" id="genProgressFill"></div>
+      </div>
+    </div>
     </div>
   </div>
   
@@ -588,25 +643,34 @@
       /* 同步面板局部样式，避免影响生成文本页 */
       #syncContent .sync-panel { display: flex; flex-direction: column; gap: 24px; }
       #syncContent .sync-field { display: flex; flex-direction: column; gap: 4px; }
-      #syncContent .sync-label { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #syncContent .sync-hint { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; }
+      /* 选择状态区样式（贴合规范） */
+      #syncContent .selection-block {
+        align-items: flex-start;
+        padding: 0;
+        gap: 4px;
+        width: 280px;
+        min-height: 38px;
+      }
+      #syncContent .sync-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
       #syncContent .sync-select,
-      #syncContent .sync-input { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
+      #syncContent .sync-input { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
       #syncContent .sync-select::placeholder,
       #syncContent .sync-input::placeholder { color: #CCCCCC; }
       #syncContent .sync-actions { padding-top: 8px; }
-      #syncContent .sync-button { width: 100%; height: 30px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
+      #syncContent .sync-button { width: 100%; height: 25px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
       #syncContent .sync-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
       #syncContent .sync-cancel { margin-top: 8px; }
-      #syncContent .sync-progress { display: none; gap: 4px; margin-top: 10px; }
-      #syncContent .sync-progress-head { display: flex; gap: 4px; align-items: center; }
-      #syncContent .sync-progress-label, #syncContent .sync-progress-percent { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-progress { display: none; gap: 8px; margin-top: 10px; }
+      #syncContent .sync-progress-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+      #syncContent .sync-progress-label, #syncContent .sync-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #syncContent .sync-progress-percent { color: #666666; }
       #syncContent .sync-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
       #syncContent .sync-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; border-radius: 4px; transition: width .2s ease; }
     </style>
 
     <div class="sync-panel">
-      <div class="sync-field">
+      <div class="sync-field selection-block">
         <div class="sync-label">选择状态</div>
         <div class="sync-hint" id="frame-selection-info">请选择至少 2 个 Frame</div>
       </div>
@@ -622,7 +686,7 @@
 
       <div class="sync-field sync-actions">
         <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
-        <button class="button cancel-button sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">终止同步</button>
+        <button class="btn-secondary sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">停止</button>
       </div>
 
       <!-- 进度展示 -->
@@ -631,7 +695,7 @@
           <div class="sync-progress-label">同步进度</div>
           <div class="sync-progress-percent" id="progressPercent">0%</div>
         </div>
-        <div class="sync-progress-bar">
+        <div class="sync-progress-bar" style="margin-top: 2px;">
           <div class="sync-progress-fill" id="progressFill"></div>
         </div>
         <!-- 兼容旧逻辑的隐藏文本容器 -->
@@ -641,28 +705,90 @@
     </div>
   </div>
 
+  <!-- 翻译选项卡内容 -->
+  <div class="tab-content" id="translateContent">
+    <style>
+      #translateContent .tr-panel { display: flex; flex-direction: column; gap: 24px; }
+      #translateContent .tr-field { display: flex; flex-direction: column; gap: 4px; }
+      #translateContent .tr-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #translateContent .tr-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
+      #translateContent .tr-select { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
+      #translateContent .tr-actions { padding-top: 8px; }
+      #translateContent .tr-button { width: 100%; height: 25px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
+      #translateContent .tr-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
+      #translateContent .tr-cancel { margin-top: 8px; }
+      #translateContent .tr-progress { display: none; gap: 8px; margin-top: 10px; }
+      #translateContent .tr-progress-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+      #translateContent .tr-progress-label, #translateContent .tr-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #translateContent .tr-progress-percent { color: #666666; }
+      #translateContent .tr-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
+      #translateContent .tr-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; border-radius: 4px; transition: width .2s ease; }
+    </style>
+
+    <div class="tr-panel">
+      <div class="tr-field">
+        <div class="tr-label">选择状态</div>
+        <div class="tr-hint" id="translate-selection-info">请选择任意对象或文本，插件将翻译其内部所有文本</div>
+      </div>
+
+      <div class="tr-field">
+        <div class="tr-label">目标语言</div>
+        <select class="tr-select" id="translateLang">
+          <option value="English" selected>英文 (English)</option>
+          <option value="Chinese">中文 (Chinese)</option>
+          <option value="Japanese">日文 (Japanese)</option>
+          <option value="Korean">韩文 (Korean)</option>
+          <option value="French">法文 (French)</option>
+          <option value="German">德文 (German)</option>
+          <option value="Spanish">西班牙文 (Spanish)</option>
+          <option value="Portuguese">葡萄牙文 (Portuguese)</option>
+          <option value="Thai">泰文 (Thai)</option>
+          <option value="Vietnamese">越南文 (Vietnamese)</option>
+          <option value="Indonesian">印尼文 (Indonesian)</option>
+        </select>
+      </div>
+
+      <div class="tr-field tr-actions">
+        <button class="tr-button" id="translateBtn" onclick="startTranslate()">开始翻译</button>
+        <button class="btn-secondary tr-cancel" id="translateCancelBtn" onclick="cancelTranslate()" style="display: none;">停止</button>
+      </div>
+
+      <div class="tr-progress" id="translateProgressContainer">
+        <div class="tr-progress-head">
+          <div class="tr-progress-label">翻译进度</div>
+          <div class="tr-progress-percent" id="translateProgressPercent">0%</div>
+        </div>
+        <div class="tr-progress-bar" style="margin-top: 2px;">
+          <div class="tr-progress-fill" id="translateProgressFill"></div>
+        </div>
+        <div class="hidden" id="translateProgressText">处理中...</div>
+        <div class="hidden" id="translateProgressDetails">0%</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 字体替换选项卡内容 -->
   <div class="tab-content" id="fontContent">
     <style>
       #fontContent .font-panel { display: flex; flex-direction: column; gap: 24px; }
-      #fontContent .font-field { display: flex; flex-direction: column; gap: 8px; }
-      #fontContent .font-label { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #fontContent .font-select, #fontContent .font-input { width: 100%; height: 36px; border: 0.5px solid #CCCCCC; border-radius: 8px; padding: 0 12px; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; background: #FFFFFF; }
+      #fontContent .font-field { display: flex; flex-direction: column; gap: 4px; }
+      #fontContent .font-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #fontContent .font-select, #fontContent .font-input { width: 100%; height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 0 12px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; background: #FFFFFF; }
       #fontContent .font-select:disabled, #fontContent .font-input:disabled { color: #AAAAAA; }
       #fontContent .font-combobox { position: relative; width: 100%; }
-      #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 8px; max-height: 720px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-      #fontContent .font-option { padding: 8px 12px; cursor: pointer; font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; display: flex; align-items: center; }
+      #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 4px; max-height: 720px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+      #fontContent .font-option { padding: 8px 12px; cursor: pointer; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; display: flex; align-items: center; }
       #fontContent .font-option:hover { background: #F5F5F5; }
       #fontContent .font-option.empty { color:#AAAAAA; cursor: default; }
       #fontContent .badge-rec { margin-left: 8px; padding: 0 6px; border-radius: 10px; background: #F5F5F5; color: #1A1A1A; font: 400 12px/18px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      #fontContent .font-button { width: 100%; height: 40px; background: #1A1A1A; border-radius: 8px; border: none; color: #FFFFFF; font: 400 16px/24px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
+      #fontContent .font-button { width: 100%; height: 25px; background: #1A1A1A; border-radius: 4px; border: none; color: #FFFFFF; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
       #fontContent .font-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
       #fontContent .font-progress { display: none; gap: 8px; }
-      #fontContent .font-progress-text { font: 400 14px/22px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
+      #fontContent .font-progress-text { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
       #fontContent .font-progress-bar { position: relative; width: 100%; height: 6px; background: #E5E5E5; border-radius: 3px; overflow: hidden; }
       #fontContent .font-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; transition: width .2s ease; }
       #fontContent .font-quick { display:flex; gap:12px; }
-      #fontContent .font-quick .font-button { height: 36px; flex:1; }
+      #fontContent .font-quick .font-button { height: 25px; flex:1; }
       /* 简化为系统字体来源，仅选择字体家族 */
     </style>
     <div class="font-panel">
@@ -675,6 +801,7 @@
         </div>
       </div>
       <button id="replaceBtn" class="font-button" disabled onclick="startReplaceFonts()">开始替换</button>
+      <button id="replaceCancelBtn" class="btn-secondary" style="display:none; margin-top:8px;" onclick="cancelReplace()">停止</button>
       <!-- 推荐快捷按钮（替换进度出现时会隐藏） -->
       <div id="quickRecommend" class="font-quick">
         <button class="font-button" onclick="quickReplaceFamily('SF Pro Text')">SF Pro Text</button>
@@ -746,8 +873,10 @@
         case 'selection-changed':
           selectedTextNodes = msg.nodes;
           selectedFrames = msg.frames || [];
+          window.selectedAnyCount = msg.anySelectionCount || (selectedTextNodes.length + selectedFrames.length);
           updateSelectionInfo();
           updateFrameSelectionInfo();
+          updateTranslateSelectionInfo();
           updateReplaceButtonState();
           break;
         case 'generate-success':
@@ -755,14 +884,21 @@
           const generateBtn = document.getElementById('generateBtn');
           generateBtn.disabled = false;
           generateBtn.classList.remove('loading');
-          generateBtn.querySelector('.generate-button-text').textContent = '生成文案';
+          // 停止仅在执行中显示
+          const genStop = document.getElementById('generateStopBtn');
+          if (genStop) genStop.style.display = 'none';
+          const gp = document.getElementById('genProgress');
+          if (gp) gp.style.display = 'none';
           break;
         case 'generate-error':
           // 恢复按钮状态
           const generateBtnError = document.getElementById('generateBtn');
           generateBtnError.disabled = false;
           generateBtnError.classList.remove('loading');
-          generateBtnError.querySelector('.generate-button-text').textContent = '生成文案';
+          const genStop2 = document.getElementById('generateStopBtn');
+          if (genStop2) genStop2.style.display = 'none';
+          const gp2 = document.getElementById('genProgress');
+          if (gp2) gp2.style.display = 'none';
           break;
         case 'api-key-saved':
           if (!msg.success) {
@@ -819,11 +955,41 @@
           setTimeout(hideReplaceProgress, 400);
           showStatus(`替换完成：共处理 ${msg.count || 0} 个文本`, 'success');
           document.getElementById('replaceBtn').disabled = false;
+          document.getElementById('replaceCancelBtn').style.display = 'none';
           break;
         case 'replace-error':
           hideReplaceProgress();
           showStatus('替换失败：' + msg.error, 'error');
           document.getElementById('replaceBtn').disabled = false;
+          document.getElementById('replaceCancelBtn').style.display = 'none';
+          break;
+        case 'replace-cancelled':
+          hideReplaceProgress();
+          showStatus('已终止字体替换', 'info');
+          document.getElementById('replaceBtn').disabled = false;
+          document.getElementById('replaceCancelBtn').style.display = 'none';
+          break;
+        case 'translate-progress':
+          showTranslateProgress(msg.percentage, msg.text || '翻译中...', msg.details);
+          break;
+        case 'translate-summary':
+          showTranslateProgress(100, '翻译完成', '100%');
+          setTimeout(hideTranslateProgress, 400);
+          showStatus(`翻译完成：共处理 ${msg.total || 0} 条，成功写入 ${msg.written || 0} 条`, 'success');
+          document.getElementById('translateBtn').disabled = false;
+          document.getElementById('translateCancelBtn').style.display = 'none';
+          break;
+        case 'translate-error':
+          hideTranslateProgress();
+          showStatus('翻译失败：' + msg.error, 'error');
+          document.getElementById('translateBtn').disabled = false;
+          document.getElementById('translateCancelBtn').style.display = 'none';
+          break;
+        case 'translate-cancelled':
+          hideTranslateProgress();
+          showStatus('翻译已取消', 'info');
+          document.getElementById('translateBtn').disabled = false;
+          document.getElementById('translateCancelBtn').style.display = 'none';
           break;
       }
     };
@@ -849,6 +1015,9 @@
         // 进入字体替换页时刷新系统字体
         parent.postMessage({ pluginMessage: { type: 'list-fonts' } }, '*');
         updateReplaceButtonState();
+      } else if (tabName === 'translate') {
+        parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+        updateTranslateSelectionInfo();
       }
     }
     
@@ -1095,6 +1264,15 @@
         generateBtn.disabled = !apiKey;
       }
     }
+
+    function updateTranslateSelectionInfo() {
+      const info = document.getElementById('translate-selection-info');
+      const btn = document.getElementById('translateBtn');
+      if (!info || !btn) return;
+      const hasAnySelection = (selectedTextNodes.length > 0) || (selectedFrames.length > 0);
+      info.textContent = hasAnySelection ? '已选择对象，准备翻译其内部所有文本' : '请选择任意对象或文本，插件将翻译其内部所有文本';
+      btn.disabled = !apiKey; // 允许点击，由插件端校验选择
+    }
     
     function generateText() {
       const prompt = document.getElementById('prompt').value.trim();
@@ -1118,7 +1296,10 @@
       // 设置按钮为loading状态
       generateBtn.disabled = true;
       generateBtn.classList.add('loading');
-      generateBtn.querySelector('.generate-button-text').textContent = '生成中...';
+      const genStop = document.getElementById('generateStopBtn');
+      if (genStop) genStop.style.display = 'inline-block';
+      const gp = document.getElementById('genProgress');
+      if (gp) gp.style.display = 'flex';
       
       parent.postMessage({ 
         pluginMessage: { 
@@ -1128,6 +1309,39 @@
           nodeIds: selectedTextNodes.map(node => node.id)
         } 
       }, '*');
+    }
+
+    // 翻译逻辑（UI侧）
+    function startTranslate() {
+      if (!apiKey) { showStatus('请先配置 API Key', 'error'); return; }
+      const lang = document.getElementById('translateLang').value || 'English';
+      const btn = document.getElementById('translateBtn');
+      const cancel = document.getElementById('translateCancelBtn');
+      btn.disabled = true;
+      if (cancel) cancel.style.display = 'inline-block';
+      showTranslateProgress(0, '准备中...', '0%');
+      parent.postMessage({ pluginMessage: { type: 'translate-texts', targetLang: lang, apiKey: apiKey } }, '*');
+    }
+
+    function cancelTranslate() {
+      parent.postMessage({ pluginMessage: { type: 'cancel-translate' } }, '*');
+    }
+
+    function showTranslateProgress(pct, text, details) {
+      const wrap = document.getElementById('translateProgressContainer');
+      const fill = document.getElementById('translateProgressFill');
+      const percent = document.getElementById('translateProgressPercent');
+      if (wrap) wrap.style.display = 'flex';
+      if (fill) fill.style.width = (pct || 0) + '%';
+      if (percent) percent.textContent = (pct || 0) + '%';
+      const t = document.getElementById('translateProgressText');
+      const d = document.getElementById('translateProgressDetails');
+      if (t) t.textContent = text || '';
+      if (d) d.textContent = details || '';
+    }
+    function hideTranslateProgress() {
+      const wrap = document.getElementById('translateProgressContainer');
+      if (wrap) wrap.style.display = 'none';
     }
 
     // ========== 字体替换逻辑 ==========
@@ -1185,7 +1399,7 @@
       const btn = document.getElementById('replaceBtn');
       const sel = document.getElementById('fontInput');
       if (!btn || !sel) return;
-      const hasSelection = (selectedFrames && selectedFrames.length >= 1);
+      const hasSelection = (window.selectedAnyCount && window.selectedAnyCount >= 1) || (selectedFrames && selectedFrames.length >= 1) || (selectedTextNodes && selectedTextNodes.length >= 1);
       const pick = fontMap[sel.value];
       btn.disabled = !(hasSelection && pick);
     }
@@ -1196,6 +1410,8 @@
       const pick = fontMap[sel.value];
       if (!pick) { showStatus('请输入或选择有效字体', 'error'); return; }
       document.getElementById('replaceBtn').disabled = true;
+      const cancel = document.getElementById('replaceCancelBtn');
+      if (cancel) cancel.style.display = 'inline-block';
       showReplaceProgress(0, '准备替换...', '0%');
       parent.postMessage({
         pluginMessage: {
@@ -1204,6 +1420,10 @@
           containerIds: selectedFrames.map(function(f){ return f.id; })
         }
       }, '*');
+    }
+
+    function cancelReplace() {
+      parent.postMessage({ pluginMessage: { type: 'cancel-replace' } }, '*');
     }
 
     // 系统字体列表填充
@@ -1246,13 +1466,15 @@
 
     // 推荐字体快捷替换
     function quickReplaceFamily(family) {
-      if (!selectedFrames || selectedFrames.length < 1) {
-        showStatus('请先选择 Frame 或 Section', 'error');
+      if (!window.selectedAnyCount || window.selectedAnyCount < 1) {
+        showStatus('请先在画布中选择需要替换字体的对象', 'error');
         return;
       }
       const input = document.getElementById('fontInput');
       if (input) input.value = family;
       showReplaceProgress(0, '准备替换...', '0%');
+      const cancel = document.getElementById('replaceCancelBtn');
+      if (cancel) cancel.style.display = 'inline-block';
       parent.postMessage({
         pluginMessage: {
           type: 'replace-font-family',

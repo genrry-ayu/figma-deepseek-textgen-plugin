@@ -14,6 +14,8 @@ let selectedTextNodes = [];
 
 // 同步取消标志
 let isSyncCancelled = false;
+// 翻译取消标志
+let isTranslateCancelled = false;
 
 // 发送进度更新
 function updateProgress(percentage, text, details) {
@@ -41,13 +43,20 @@ figma.ui.onmessage = async (msg) => {
         await listTextStyles();
         break;
       case 'replace-fonts':
+        isReplaceCancelled = false;
         await replaceFontsInContainers(msg.fontFamily, msg.fontStyle, msg.containerIds);
         break;
       case 'replace-with-text-style':
+        isReplaceCancelled = false;
         await replaceWithTextStyle(msg.styleId, msg.fontFamily, msg.fontStyle, msg.containerIds);
         break;
       case 'replace-font-family':
+        isReplaceCancelled = false;
         await replaceFontFamilyInContainers(msg.fontFamily, msg.containerIds);
+        break;
+      case 'cancel-replace':
+        isReplaceCancelled = true;
+        figma.ui.postMessage({ type: 'replace-cancelled' });
         break;
       case 'generate-text':
         await generateText(msg.prompt, msg.apiKey, msg.nodeIds);
@@ -104,6 +113,14 @@ figma.ui.onmessage = async (msg) => {
         isSyncCancelled = true;
         figma.ui.postMessage({ type: 'sync-cancelled' });
         break;
+      case 'translate-texts':
+        isTranslateCancelled = false;
+        await translateSelection(msg.targetLang || 'English', msg.apiKey);
+        break;
+      case 'cancel-translate':
+        isTranslateCancelled = true;
+        figma.ui.postMessage({ type: 'translate-cancelled' });
+        break;
     }
   } catch (error) {
     console.error('插件错误:', error);
@@ -137,7 +154,8 @@ function handleSelectionChange() {
         width: frame.width,
         height: frame.height
       };
-    })
+    }),
+    anySelectionCount: selection.length
   });
 }
 
@@ -705,6 +723,16 @@ function apply(m, x, y) {
   return { x: a * x + c * y + e, y: b * x + d * y + f };
 }
 
+// 可见性（包含父级）判断
+function isNodeVisibleDeep(node) {
+  let cur = node;
+  while (cur) {
+    try { if (cur.visible === false) return false; } catch (_) {}
+    cur = cur.parent;
+  }
+  return true;
+}
+
 // ========== 字体列表与替换 ==========
 
 // 列出当前账号可用字体
@@ -722,46 +750,45 @@ async function listAvailableFonts() {
 }
 
 // 在选中的 Frame / Section 中替换文本节点字体
+let isReplaceCancelled = false;
+
 async function replaceFontsInContainers(fontFamily, fontStyle, containerIds) {
   try {
     if (!fontFamily || !fontStyle) throw new Error('未选择字体');
 
     const targetFont = { family: fontFamily, style: fontStyle };
-    await figma.loadFontAsync(targetFont);
+    try { await figma.loadFontAsync(targetFont); } catch (_) {}
 
-    // 收集容器
+    // 收集容器（允许任意被选节点作为根）
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
         const node = figma.getNodeById(containerIds[i]);
-        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) {
-          containers.push(node);
-        }
+        if (node) containers.push(node);
       }
     } else {
-      // 兜底：用当前选择
+      // 兜底：用当前选择（不限类型）
       const sel = figma.currentPage.selection;
       for (let i = 0; i < sel.length; i++) {
-        const n = sel[i];
-        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
+        containers.push(sel[i]);
       }
     }
 
-    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+    if (containers.length === 0) throw new Error('请先选择至少 1 个对象');
 
-    // 收集文本节点
+    // 收集文本节点（仅可见：扫描所有后代 TEXT）
     const textNodes = [];
     for (let i = 0; i < containers.length; i++) {
       const c = containers[i];
       try {
         const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
         for (let j = 0; j < nodes.length; j++) {
-          textNodes.push(nodes[j]);
+          const n = nodes[j];
+          if (isNodeVisibleDeep(n)) textNodes.push(n);
         }
-      } catch (e) {
-        // 回退到递归
+      } catch (_) {
         const rec = getTextNodesInFrameRecursive(c);
-        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+        for (let j = 0; j < rec.length; j++) if (isNodeVisibleDeep(rec[j])) textNodes.push(rec[j]);
       }
     }
 
@@ -770,36 +797,37 @@ async function replaceFontsInContainers(fontFamily, fontStyle, containerIds) {
       return;
     }
 
-    // 进度
-    const total = textNodes.length;
-    let done = 0;
-
-    // 替换
-    for (let i = 0; i < textNodes.length; i++) {
-      const n = textNodes[i];
-      try {
-        if (n.locked) continue;
-        const len = n.characters.length;
-        await figma.loadFontAsync(targetFont);
-        if (len > 0) {
-          n.setRangeFontName(0, len, targetFont);
-        } else if (n.fontName !== figma.mixed) {
-          n.fontName = targetFont;
-        } else {
-          // 空字符但混合，统一成目标字体
-          n.fontName = targetFont;
-        }
-      } catch (e) {
-        // 忽略单个节点失败
-      } finally {
-        done++;
-        const pct = Math.floor((done / total) * 100);
-        figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
-        await sleep(0);
+    const total = textNodes.length; let done = 0;
+    const batchSize = 200;
+    for (let i = 0; i < textNodes.length; i += batchSize) {
+      if (isReplaceCancelled) break;
+      const slice = textNodes.slice(i, i + batchSize);
+      for (let j = 0; j < slice.length; j++) {
+        const n = slice[j];
+        try {
+          if (n.locked) continue;
+          const len = n.characters.length || 0;
+          if (len === 0) {
+            // 空文本：若已是目标字体则跳过
+            try { if (n.fontName !== figma.mixed) { const f = n.fontName; if (f.family === fontFamily && f.style === fontStyle) { done++; continue; } } } catch (_) {}
+            n.fontName = targetFont;
+          } else {
+            n.setRangeFontName(0, len, targetFont);
+          }
+        } catch (_) {
+          // 忽略单点失败
+        } finally { done++; }
       }
+      const pct = Math.floor((done / total) * 100);
+      figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
+      await sleep(0);
     }
 
-    figma.ui.postMessage({ type: 'replace-summary', count: done });
+    if (isReplaceCancelled) {
+      figma.ui.postMessage({ type: 'replace-cancelled', count: done });
+    } else {
+      figma.ui.postMessage({ type: 'replace-summary', count: done });
+    }
   } catch (error) {
     console.error('字体替换失败:', error);
     figma.ui.postMessage({ type: 'replace-error', error: error.message });
@@ -841,70 +869,86 @@ async function replaceFontFamilyInContainers(fontFamily, containerIds) {
       }
     }
 
-    // 容器
+    // 容器（允许任意被选节点作为根）
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
         const node = figma.getNodeById(containerIds[i]);
-        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) containers.push(node);
+        if (node) containers.push(node);
       }
     } else {
       const sel = figma.currentPage.selection;
-      for (let i = 0; i < sel.length; i++) {
-        const n = sel[i];
-        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
-      }
+      for (let i = 0; i < sel.length; i++) containers.push(sel[i]);
     }
 
-    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+    if (containers.length === 0) throw new Error('请先选择至少 1 个对象');
 
-    // 文本节点
+    // 文本节点（仅可见：扫描所有后代 TEXT）
     const textNodes = [];
     for (let i = 0; i < containers.length; i++) {
       const c = containers[i];
       try {
         const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
-        for (let j = 0; j < nodes.length; j++) textNodes.push(nodes[j]);
+        for (let j = 0; j < nodes.length; j++) if (isNodeVisibleDeep(nodes[j])) textNodes.push(nodes[j]);
       } catch (e) {
         const rec = getTextNodesInFrameRecursive(c);
-        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+        for (let j = 0; j < rec.length; j++) if (isNodeVisibleDeep(rec[j])) textNodes.push(rec[j]);
       }
     }
 
     const total = textNodes.length; let done = 0;
-    for (let i = 0; i < textNodes.length; i++) {
-      const n = textNodes[i];
-      try {
-        if (n.locked) continue;
-        if (n.characters.length > 0 && n.getStyledTextSegments) {
-          const segs = n.getStyledTextSegments(['fontName']);
-          for (let s = 0; s < segs.length; s++) {
-            const seg = segs[s];
-            const desiredStyle = available.has(seg.fontName.style) ? seg.fontName.style : pickFallback();
-            const usedStyle = await ensureLoaded(desiredStyle);
-            n.setRangeFontName(seg.start, seg.end, { family: fontFamily, style: usedStyle });
+    const batchSize = 120;
+    for (let i = 0; i < textNodes.length; i += batchSize) {
+      if (isReplaceCancelled) break;
+      const slice = textNodes.slice(i, i + batchSize);
+      for (let k = 0; k < slice.length; k++) {
+        const n = slice[k];
+        try {
+          if (n.locked) continue;
+          const len = n.characters.length || 0;
+          // 空文本直接设置整体字体家族（保留风格尽量匹配）
+          if (len === 0 && n.fontName !== figma.mixed) {
+            const cur = n.fontName; const used = available.has(cur.style) ? cur.style : pickFallback();
+            if (!(cur.family === fontFamily && cur.style === used)) {
+              n.fontName = { family: fontFamily, style: used };
+            }
+          } else if (len > 0) {
+            // 为了极致性能：整段设置成 family + 现有 style 或 fallback
+            let styleName = 'Regular';
+            try {
+              if (n.getStyledTextSegments) {
+                const segs = n.getStyledTextSegments(['fontName']);
+                if (segs && segs.length) styleName = segs[0].fontName.style || 'Regular';
+              } else if (n.fontName !== figma.mixed && n.fontName && n.fontName.style) {
+                styleName = n.fontName.style;
+              }
+            } catch (_) {}
+            if (!available.has(styleName)) styleName = pickFallback();
+            // 确保所需样式已加载
+            try { await figma.loadFontAsync({ family: fontFamily, style: styleName }); } catch (_) {}
+            n.setRangeFontName(0, len, { family: fontFamily, style: styleName });
           }
-        } else {
-          // 空文本或无法分段
-          let oldStyle = 'Regular';
-          try {
-            if (n.fontName !== figma.mixed && n.fontName && n.fontName.style) oldStyle = n.fontName.style;
-          } catch (_) {}
-          const desiredStyle = available.has(oldStyle) ? oldStyle : pickFallback();
-          const usedStyle = await ensureLoaded(desiredStyle);
-          n.fontName = { family: fontFamily, style: usedStyle };
+        } catch (_) {
+          // 忽略单点失败
+        } finally { 
+          done++; 
+          if (done % 25 === 0) {
+            const pctStep = Math.floor((done / total) * 100);
+            figma.ui.postMessage({ type: 'replace-progress', percentage: pctStep, text: '字体替换中...', details: pctStep + '%' });
+            await sleep(0);
+          }
         }
-      } catch (_) {
-        // 忽略单点失败
-      } finally {
-        done++;
-        const pct = Math.floor((done / total) * 100);
-        figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
-        await sleep(0);
       }
+      const pct = Math.floor((done / total) * 100);
+      figma.ui.postMessage({ type: 'replace-progress', percentage: pct, text: '字体替换中...', details: pct + '%' });
+      await sleep(0);
     }
 
-    figma.ui.postMessage({ type: 'replace-summary', count: done });
+    if (isReplaceCancelled) {
+      figma.ui.postMessage({ type: 'replace-cancelled', count: done });
+    } else {
+      figma.ui.postMessage({ type: 'replace-summary', count: done });
+    }
   } catch (error) {
     console.error('仅替换字体家族失败:', error);
     figma.ui.postMessage({ type: 'replace-error', error: error.message });
@@ -939,39 +983,37 @@ async function replaceWithTextStyle(styleId, fontFamily, fontStyle, containerIds
       try { await figma.loadFontAsync({ family: fontFamily, style: fontStyle }); } catch (_) {}
     }
 
-    // 容器收集
+    // 容器收集（允许任意被选节点作为根）
     const containers = [];
     if (Array.isArray(containerIds) && containerIds.length) {
       for (let i = 0; i < containerIds.length; i++) {
         const node = figma.getNodeById(containerIds[i]);
-        if (node && (node.type === 'FRAME' || node.type === 'SECTION')) containers.push(node);
+        if (node) containers.push(node);
       }
     } else {
       const sel = figma.currentPage.selection;
-      for (let i = 0; i < sel.length; i++) {
-        const n = sel[i];
-        if (n.type === 'FRAME' || n.type === 'SECTION') containers.push(n);
-      }
+      for (let i = 0; i < sel.length; i++) containers.push(sel[i]);
     }
 
-    if (containers.length === 0) throw new Error('请先选择至少 1 个 Frame 或 Section');
+    if (containers.length === 0) throw new Error('请先选择至少 1 个对象');
 
-    // 收集文本节点
+    // 收集文本节点（仅可见）
     const textNodes = [];
     for (let i = 0; i < containers.length; i++) {
       const c = containers[i];
       try {
         const nodes = c.findAllWithCriteria({ types: ['TEXT'] });
-        for (let j = 0; j < nodes.length; j++) textNodes.push(nodes[j]);
+        for (let j = 0; j < nodes.length; j++) if (isNodeVisibleDeep(nodes[j])) textNodes.push(nodes[j]);
       } catch (e) {
         const rec = getTextNodesInFrameRecursive(c);
-        for (let j = 0; j < rec.length; j++) textNodes.push(rec[j]);
+        for (let j = 0; j < rec.length; j++) if (isNodeVisibleDeep(rec[j])) textNodes.push(rec[j]);
       }
     }
 
     const total = textNodes.length;
     let done = 0;
     for (let i = 0; i < textNodes.length; i++) {
+      if (isReplaceCancelled) break;
       const n = textNodes[i];
       try {
         if (n.locked) continue;
@@ -992,7 +1034,11 @@ async function replaceWithTextStyle(styleId, fontFamily, fontStyle, containerIds
       }
     }
 
-    figma.ui.postMessage({ type: 'replace-summary', count: done });
+    if (isReplaceCancelled) {
+      figma.ui.postMessage({ type: 'replace-cancelled', count: done });
+    } else {
+      figma.ui.postMessage({ type: 'replace-summary', count: done });
+    }
   } catch (error) {
     console.error('应用文本样式失败:', error);
     figma.ui.postMessage({ type: 'replace-error', error: error.message });
@@ -1018,6 +1064,573 @@ function centerInFrame(frame, node) {
 
 function norm(frame, p) {
   return { nx: p.x / frame.width, ny: p.y / frame.height };
+}
+
+// ========== 翻译功能 ==========
+
+// 获取节点绝对中心坐标
+function getAbsoluteCenter(node) {
+  try {
+    const abs = node.absoluteTransform;
+    const ctr = apply(abs, node.width / 2, node.height / 2);
+    return { x: ctr.x, y: ctr.y };
+  } catch (_) {
+    return { x: node.x || 0, y: node.y || 0 };
+  }
+}
+
+// 收集当前选择内的所有文本节点（任意容器）
+function collectTextNodesFromSelection() {
+  const result = [];
+  const sel = figma.currentPage.selection || [];
+  const seen = new Set();
+
+  const isVisibleDeep = function(n) {
+    let cur = n;
+    while (cur) {
+      try { if (cur.visible === false) return false; } catch (_) {}
+      cur = cur.parent;
+    }
+    return true;
+  };
+
+  function pushIfOk(n) {
+    if (!n) return;
+    if (n.type === 'TEXT' && !seen.has(n.id) && isVisibleDeep(n)) {
+      seen.add(n.id);
+      result.push(n);
+    }
+  }
+
+  function traverse(root) {
+    if (!root) return;
+    // 跳过不可见分支以提速
+    try { if (root.visible === false) return; } catch (_) {}
+    if (root.type === 'TEXT') {
+      pushIfOk(root);
+      return;
+    }
+    const children = root.children || [];
+    for (let i = 0; i < children.length; i++) {
+      traverse(children[i]);
+    }
+  }
+
+  for (let i = 0; i < sel.length; i++) {
+    try {
+      traverse(sel[i]);
+    } catch (e) {
+      // 忽略单个节点失败
+    }
+  }
+
+  return result;
+}
+
+// DeepSeek 翻译调用（批量）
+async function callDeepSeekTranslateBatch(lines, targetLang, apiKey) {
+  if (!lines || lines.length === 0) return [];
+  const systemPrompt = `You are a professional UI/UX translator.
+Translate the following lines into ${targetLang}.
+Rules:
+1) Keep line count and order exactly.
+2) No numbering, no quotes, no explanations.
+3) Preserve placeholders, variables, and URLs as-is (e.g. {name}, %s, https://...).
+4) Keep emojis and special symbols.
+Output: one translated line per input line, separated by \n.`;
+
+  const userContent = lines.join('\n');
+  const requestData = {
+    model: 'deepseek-chat',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent }
+    ],
+    temperature: 0.3,
+    max_tokens: Math.min(4096, Math.max(200, lines.length * 40))
+  };
+
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(requestData)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`API 请求失败: ${response.status} ${(errorData.error && errorData.error.message) || response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('API 返回格式错误');
+  }
+  const content = (data.choices[0].message.content || '').trim();
+  const out = content.split('\n').map(function(s){ return s.replace(/^\s+|\s+$/g, ''); });
+  if (out.length < lines.length) {
+    const alt = content.split(/[，,；;]\s*/).map(function(s){ return s.replace(/^\s+|\s+$/g, ''); });
+    while (out.length < lines.length && alt.length) out.push(alt.shift());
+    while (out.length < lines.length) out.push(lines[out.length]);
+  } else if (out.length > lines.length) {
+    return out.slice(0, lines.length);
+  }
+  return out;
+}
+
+// 带标签的单次打包翻译与解析
+function buildTaggedLines(lines, offset) {
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const tag = String(i + 1 + (offset || 0)).padStart(4, '0');
+    out.push(`<<<#${tag}>>> ${lines[i]}`);
+  }
+  return out;
+}
+
+function parseTaggedResponse(content) {
+  const map = new Map();
+  const regex = /<<<#(\d{4})>>>\s*([\s\S]*?)(?=(?:\n<<<#\d{4}>>>|$))/g;
+  let m;
+  while ((m = regex.exec(content)) !== null) {
+    const id = m[1];
+    const text = (m[2] || '').replace(/^[\s\t]+|[\s\t]+$/g, '');
+    map.set(id, text);
+  }
+  return map;
+}
+
+async function callDeepSeekTranslateTaggedSingle(lines, targetLang, apiKey) {
+  const systemPrompt = `You are a professional UI/UX translator. Translate user interface strings into ${targetLang}.\nStrict rules:\n- Keep the special marker <<<#NNNN>>> at line start unchanged. Do not translate or alter markers.\n- Return exactly the same number of lines, same order.\n- Each output line must start with the same marker then a space, then ONLY the translated text.\n- No extra commentary, numbering, or quotes.\n- Preserve placeholders/variables/URLs as-is (e.g. {name}, %s, https://...).\n- Keep emojis and special symbols.`;
+
+  const tagged = buildTaggedLines(lines, 0);
+  const userContent = tagged.join('\n');
+  const requestData = {
+    model: 'deepseek-chat',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent }
+    ],
+    temperature: 0.2,
+    max_tokens: Math.min(16000, Math.max(200, lines.length * 50))
+  };
+
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(requestData)
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`API 请求失败: ${response.status} ${(errorData.error && errorData.error.message) || response.statusText}`);
+  }
+  const data = await response.json();
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error('API 返回格式错误');
+  }
+  const content = (data.choices[0].message.content || '').trim();
+  const map = parseTaggedResponse(content);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const key = String(i + 1).padStart(4, '0');
+    out.push(map.get(key) !== undefined ? map.get(key) : lines[i]);
+  }
+  return out;
+}
+
+// ========== Token 预算估算与分批辅助 ==========
+function estimateTokensFromText(s) {
+  if (!s) return 0;
+  // 为避免超限，使用偏大的估算：1 字符 ≈ 1.2 token
+  return Math.ceil(s.length * 1.2);
+}
+
+function estimateTaggedInputTokens(lines) {
+  let total = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const tag = `<<<#${String(i + 1).padStart(4, '0')}>>> `;
+    total += estimateTokensFromText(tag) + estimateTokensFromText(lines[i]);
+  }
+  return total;
+}
+
+function estimateTaggedOutputTokens(lines) {
+  // 近似认为输出与输入等长（含标记）
+  return estimateTaggedInputTokens(lines);
+}
+
+function buildBatchesByTokenBudget(lines, totalBudgetTokens) {
+  // 按输入/输出 6:4 的比例切分预算
+  const inputBudget = Math.floor(totalBudgetTokens * 0.6);
+  const outputBudget = totalBudgetTokens - inputBudget;
+  const batches = [];
+  let cur = [];
+  let inTok = 0;
+  let outTok = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    // 估算当前项 token（带标记）
+    const tag = `<<<#${String((cur.length || 0) + 1).padStart(4, '0')}>>> `;
+    const add = estimateTokensFromText(tag) + estimateTokensFromText(l);
+    if (cur.length > 0 && (inTok + add > inputBudget || outTok + add > outputBudget)) {
+      batches.push(cur);
+      cur = [l];
+      inTok = estimateTokensFromText('<<<#0001>>> ') + estimateTokensFromText(l);
+      outTok = inTok;
+    } else {
+      cur.push(l);
+      inTok += add;
+      outTok += add;
+    }
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
+
+async function callDeepSeekTranslateTaggedBatched(lines, targetLang, apiKey) {
+  // 单请求 token 总预算（输入+输出），可按模型上下文调整
+  const TOTAL_BUDGET_PER_REQ = 8000; // 保守
+  const batches = buildBatchesByTokenBudget(lines, TOTAL_BUDGET_PER_REQ);
+  const out = new Array(lines.length);
+  let processed = 0;
+  const totalBatches = batches.length;
+  for (let bi = 0; bi < batches.length; bi++) {
+    const batch = batches[bi];
+    const offset = processed;
+    // 进度：将分批翻译映射到 15% - 65% 区间
+    try {
+      const pct = 15 + Math.floor((bi / Math.max(1, totalBatches)) * 50);
+      figma.ui.postMessage({ type: 'translate-progress', percentage: pct, text: `分批翻译中 ${processed}/${lines.length}...（${bi + 1}/${totalBatches}）` });
+    } catch (_) {}
+    const systemPrompt = `You are a professional UI/UX translator. Translate user interface strings into ${targetLang}.\nStrict rules:\n- Keep the special marker <<<#NNNN>>> at line start unchanged. Do not translate or alter markers.\n- Return exactly the same number of lines, same order.\n- Each output line must start with the same marker then a space, then ONLY the translated text.\n- No extra commentary.\n- Preserve placeholders/variables/URLs as-is.`;
+    const tagged = buildTaggedLines(batch, offset);
+    // 输出 max_tokens 也根据估算设置
+    const estimatedOut = estimateTaggedOutputTokens(batch);
+    const requestData = {
+      model: 'deepseek-chat',
+      messages: [ { role: 'system', content: systemPrompt }, { role: 'user', content: tagged.join('\n') } ],
+      temperature: 0.2,
+      max_tokens: Math.min(6000, Math.max(200, Math.ceil(estimatedOut * 1.2)))
+    };
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(requestData)
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`API 请求失败: ${response.status} ${(errorData.error && errorData.error.message) || response.statusText}`);
+    }
+    const data = await response.json();
+    const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
+    const map = parseTaggedResponse(content);
+    for (let i = 0; i < batch.length; i++) {
+      const key = String(i + 1 + offset).padStart(4, '0');
+      out[offset + i] = map.get(key) !== undefined ? map.get(key) : batch[i];
+    }
+    processed += batch.length;
+    try {
+      const pct = 15 + Math.floor((Math.min(bi + 1, totalBatches) / Math.max(1, totalBatches)) * 50);
+      figma.ui.postMessage({ type: 'translate-progress', percentage: pct, text: `分批翻译中 ${processed}/${lines.length}...（${Math.min(bi + 1, totalBatches)}/${totalBatches}）` });
+    } catch (_) {}
+    await new Promise(function(r){ setTimeout(r, 0); });
+  }
+  return out;
+}
+
+// 并发分批翻译（最优策略）：按 token 预算切批 + 多批并行
+async function callDeepSeekTranslateTaggedParallel(lines, targetLang, apiKey, concurrency) {
+  const TOTAL_BUDGET_PER_REQ = 8000; // 与串行分批一致的预算
+  const batches = buildBatchesByTokenBudget(lines, TOTAL_BUDGET_PER_REQ);
+  const out = new Array(lines.length);
+  const totalBatches = batches.length;
+  if (totalBatches === 0) return out;
+
+  // 计算每批的全局偏移，确保标签唯一
+  const offsets = new Array(totalBatches);
+  let acc = 0;
+  for (let i = 0; i < totalBatches; i++) {
+    offsets[i] = acc;
+    acc += batches[i].length;
+  }
+
+  // 轻量 system prompt，减少 token 占用
+  const buildRequest = function(batch, offset) {
+    const sys = `Translate UI strings to ${targetLang}. Keep markers <<<#NNNN>>> unchanged; same line count and order. Each line: marker + space + translated text only. Preserve placeholders/URLs. No extra text.`;
+    const tagged = buildTaggedLines(batch, offset);
+    const estimatedOut = estimateTaggedOutputTokens(batch);
+    const req = {
+      model: 'deepseek-chat',
+      messages: [ { role: 'system', content: sys }, { role: 'user', content: tagged.join('\n') } ],
+      temperature: 0.2,
+      max_tokens: Math.min(6000, Math.max(200, Math.ceil(estimatedOut * 1.2)))
+    };
+    return req;
+  };
+
+  let completed = 0;
+  async function runOne(idx) {
+    const batch = batches[idx];
+    const offset = offsets[idx];
+    // 进度：映射到 15% - 65%
+    try {
+      const pct = 15 + Math.floor((completed / Math.max(1, totalBatches)) * 50);
+      figma.ui.postMessage({ type: 'translate-progress', percentage: pct, text: `并发翻译中…（${completed}/${totalBatches}）` });
+    } catch (_) {}
+
+    const requestData = buildRequest(batch, offset);
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify(requestData)
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`API 请求失败: ${response.status} ${(errorData.error && errorData.error.message) || response.statusText}`);
+    }
+    const data = await response.json();
+    const content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
+    const map = parseTaggedResponse(content);
+    for (let i = 0; i < batch.length; i++) {
+      const key = String(i + 1 + offset).padStart(4, '0');
+      out[offset + i] = map.get(key) !== undefined ? map.get(key) : batch[i];
+    }
+    completed++;
+    try {
+      const pct = 15 + Math.floor((completed / Math.max(1, totalBatches)) * 50);
+      figma.ui.postMessage({ type: 'translate-progress', percentage: pct, text: `并发翻译中…（${completed}/${totalBatches}）` });
+    } catch (_) {}
+  }
+
+  // 简单 worker 池
+  const pool = Math.max(1, Math.min(concurrency || 2, 6));
+  let next = 0;
+  const workers = new Array(pool).fill(0).map(async function() {
+    while (next < totalBatches) {
+      const idx = next++;
+      if (isTranslateCancelled) throw new Error('用户取消');
+      await runOne(idx);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+// 将数组分批以控制请求体大小
+function chunkBySize(items, maxItems, maxChars) {
+  const batches = [];
+  let cur = [];
+  let len = 0;
+  for (let i = 0; i < items.length; i++) {
+    const s = items[i];
+    if ((cur.length + 1 > maxItems) || (len + s.length > maxChars)) {
+      if (cur.length) batches.push(cur);
+      cur = [s];
+      len = s.length;
+    } else {
+      cur.push(s);
+      len += s.length;
+    }
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
+
+// 翻译当前选择内文本
+async function translateSelection(targetLang, apiKey) {
+  try {
+    if (!apiKey) throw new Error('缺少 API Key');
+
+    figma.ui.postMessage({ type: 'translate-progress', percentage: 2, text: '收集文本节点...' });
+    const nodes = collectTextNodesFromSelection();
+    const writable = nodes.filter(function(n){ return canWriteToNode(n); });
+    const nonEmpty = writable.filter(function(n){ return (n.characters || '').length > 0; });
+
+    if (nonEmpty.length === 0) throw new Error('未找到可翻译的文本节点');
+
+    // 严格阅读顺序：先按行（由上到下），再按列（行内从左到右）
+    const centers = new Map();
+    const ys = [];
+    const hs = [];
+    for (let i = 0; i < nonEmpty.length; i++) {
+      const n = nonEmpty[i];
+      const c = getAbsoluteCenter(n);
+      centers.set(n.id, c);
+      ys.push(c.y);
+      try { hs.push(Math.max(1, n.height || 0)); } catch (_) {}
+    }
+    ys.sort(function(a,b){ return a-b; });
+    hs.sort(function(a,b){ return a-b; });
+    const medianH = hs.length ? hs[Math.floor(hs.length/2)] : 16;
+    const tol = Math.max(4, Math.min(32, medianH * 0.6));
+
+    // 先按 y 排序，再分行，行内按 x 升序
+    nonEmpty.sort(function(a,b){ return centers.get(a.id).y - centers.get(b.id).y; });
+    const rows = [];
+    let current = [];
+    let currentY = null;
+    for (let i = 0; i < nonEmpty.length; i++) {
+      const n = nonEmpty[i];
+      const cy = centers.get(n.id).y;
+      if (currentY === null || Math.abs(cy - currentY) <= tol) {
+        current.push(n);
+        // 动态更新行参考 y，取加权平均可减少抖动
+        if (currentY === null) currentY = cy; else currentY = (currentY * (current.length - 1) + cy) / current.length;
+      } else {
+        // 结束上一行，行内按 x 排序
+        current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; });
+        rows.push(current);
+        // 开始新行
+        current = [n];
+        currentY = cy;
+      }
+    }
+    if (current.length) {
+      current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; });
+      rows.push(current);
+    }
+    // 按行展开为严格阅读顺序
+    const ordered = [];
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      for (let j = 0; j < row.length; j++) ordered.push(row[j]);
+    }
+    // 使用新顺序替换 nonEmpty
+    nonEmpty.splice(0, nonEmpty.length, ...ordered);
+
+    const texts = nonEmpty.map(function(n){ return n.characters; });
+    const total = texts.length;
+    figma.ui.postMessage({ type: 'translate-progress', percentage: 5, text: `准备翻译 ${total} 条文本...` });
+
+    await loadFontsIfNeeded(nonEmpty);
+
+    // 性能优化：去重相同文案，仅翻译唯一项
+    const uniqueList = [];
+    const uniqueIndexByText = new Map();
+    const bucketByUnique = new Map(); // uniqueIdx -> [originalIndices]
+    const shouldTranslate = function(s) {
+      if (!s) return false;
+      const t = ('' + s).trim();
+      if (t.length === 0) return false;
+      // 仅数字/常见符号的直接跳过
+      if (/^[0-9\s\-+.,:;\/()]+$/.test(t)) return false;
+      return true;
+    };
+
+    const originalResults = new Array(total);
+    for (let i = 0; i < texts.length; i++) {
+      const raw = texts[i];
+      if (!shouldTranslate(raw)) {
+        originalResults[i] = raw;
+        continue;
+      }
+      const key = raw.trim();
+      let uidx = uniqueIndexByText.get(key);
+      if (uidx === undefined) {
+        uidx = uniqueList.length;
+        uniqueIndexByText.set(key, uidx);
+        uniqueList.push(key);
+      }
+      if (!bucketByUnique.has(uidx)) bucketByUnique.set(uidx, []);
+      bucketByUnique.get(uidx).push(i);
+    }
+
+    // 若无需翻译（全部跳过），直接写回并结束
+    if (uniqueList.length === 0) {
+      let written = 0;
+      const writeBatch = 200;
+      for (let i = 0; i < nonEmpty.length; i += writeBatch) {
+        const slice = nonEmpty.slice(i, i + writeBatch);
+        for (let k = 0; k < slice.length; k++) {
+          try { slice[k].characters = originalResults[i + k] || texts[i + k]; written++; } catch (_) {}
+        }
+        const pct = 70 + Math.floor(((i + writeBatch) / nonEmpty.length) * 30);
+        figma.ui.postMessage({ type: 'translate-progress', percentage: Math.min(pct, 98), text: `写入中 ${Math.min(i + writeBatch, nonEmpty.length)}/${nonEmpty.length}...` });
+        await new Promise(function(r){ setTimeout(r, 0); });
+      }
+      figma.ui.postMessage({ type: 'translate-progress', percentage: 100, text: '翻译完成' });
+      figma.ui.postMessage({ type: 'translate-summary', total, written });
+      return;
+    }
+
+    // 根据 token 预算决定是否一次性翻译，否则直接分批（仅对唯一项）
+    let translatedUniques;
+    const overhead = 800;
+    const totalIn = estimateTaggedInputTokens(uniqueList);
+    const totalOut = estimateTaggedOutputTokens(uniqueList);
+    const totalTokens = totalIn + totalOut + overhead;
+    const SINGLESHOT_LIMIT = 12000; // 可按模型上下文调大/调小
+    if (totalTokens <= SINGLESHOT_LIMIT) {
+      try {
+        if (isTranslateCancelled) throw new Error('用户取消');
+        figma.ui.postMessage({ type: 'translate-progress', percentage: 20, text: '一次性打包翻译中...' });
+        translatedUniques = await callDeepSeekTranslateTaggedSingle(uniqueList, targetLang, apiKey);
+      } catch (e) {
+        if (isTranslateCancelled) throw e;
+        figma.ui.postMessage({ type: 'translate-progress', percentage: 20, text: '单次失败，改为并发分批翻译...' });
+        translatedUniques = await callDeepSeekTranslateTaggedParallel(uniqueList, targetLang, apiKey, 3);
+      }
+    } else {
+      figma.ui.postMessage({ type: 'translate-progress', percentage: 15, text: '文本较多，自动并发分批翻译...' });
+      translatedUniques = await callDeepSeekTranslateTaggedParallel(uniqueList, targetLang, apiKey, 3);
+    }
+
+    // 如果标记翻译几乎未变（模型忽略了翻译要求），回退到旧的简单一shot或分批（对唯一项）
+    try {
+      let unchanged = 0;
+      for (let i = 0; i < translatedUniques.length; i++) {
+        if ((translatedUniques[i] || '').trim() === (uniqueList[i] || '').trim()) unchanged++;
+      }
+      const ratio = translatedUniques.length ? unchanged / translatedUniques.length : 1;
+      if (ratio >= 0.9) {
+        // 先尝试旧的一次性批量
+        figma.ui.postMessage({ type: 'translate-progress', percentage: 25, text: '回退：尝试一次性批量翻译...' });
+        try {
+          const oneShot = await callDeepSeekTranslateBatch(uniqueList, targetLang, apiKey);
+          translatedUniques = oneShot;
+        } catch (e2) {
+          // 再尝试旧的分批
+          figma.ui.postMessage({ type: 'translate-progress', percentage: 25, text: '回退：并发分批翻译中...' });
+          translatedUniques = await callDeepSeekTranslateTaggedParallel(uniqueList, targetLang, apiKey, 3);
+        }
+      }
+    } catch (_) {
+      // 忽略回退统计失败
+    }
+
+    // 将唯一项翻译结果映射回原顺序
+    const results = new Array(total);
+    for (let [uidx, idxList] of bucketByUnique.entries()) {
+      const val = translatedUniques[uidx];
+      for (let p = 0; p < idxList.length; p++) results[idxList[p]] = val;
+    }
+    for (let i = 0; i < results.length; i++) if (results[i] === undefined) results[i] = originalResults[i] || texts[i];
+
+    // 写回
+    let written = 0;
+    const writeBatch = 300; // 提高单批写入，减少批次数
+    for (let i = 0; i < nonEmpty.length; i += writeBatch) {
+      if (isTranslateCancelled) throw new Error('用户取消');
+      const slice = nonEmpty.slice(i, i + writeBatch);
+      for (let k = 0; k < slice.length; k++) {
+        try {
+          slice[k].characters = results[i + k] || texts[i + k];
+          written++;
+        } catch (_) {}
+      }
+      const pct = 70 + Math.floor(((i + writeBatch) / nonEmpty.length) * 30);
+      figma.ui.postMessage({ type: 'translate-progress', percentage: Math.min(pct, 98), text: `写入中 ${Math.min(i + writeBatch, nonEmpty.length)}/${nonEmpty.length}...` });
+      await new Promise(function(r){ setTimeout(r, 0); });
+    }
+
+    figma.ui.postMessage({ type: 'translate-progress', percentage: 100, text: '翻译完成' });
+    figma.ui.postMessage({ type: 'translate-summary', total, written });
+  } catch (error) {
+    if ((error && ('' + error.message).includes('取消')) || isTranslateCancelled) {
+      figma.ui.postMessage({ type: 'translate-cancelled' });
+      return;
+    }
+    console.error('翻译失败:', error);
+    figma.ui.postMessage({ type: 'translate-error', error: error.message });
+  }
 }
 
 // 收集文本节点（优化版本）
@@ -1847,7 +2460,10 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.08, includeSour
 function getTextNodesInFrame(frame) {
   try {
     // 使用 Figma 内置的高效搜索，只查找 TEXT 类型节点
-    return frame.findAllWithCriteria({ types: ['TEXT'] });
+    const nodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+    return nodes.filter(function(n){
+      try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
+    });
   } catch (error) {
     console.warn('findAllWithCriteria 失败，使用递归方式:', error);
     // 回退到递归方式
@@ -1868,6 +2484,7 @@ function getTextNodesInFrameRecursive(frame) {
     }
     
     try {
+      if (node.visible === false) return; // 不可见分支直接跳过
       if (node.type === 'TEXT' && node.visible !== false) {
         textNodes.push(node);
         nodeCount++;
