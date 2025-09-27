@@ -558,7 +558,7 @@
     <div class="sync-panel">
       <div class="sync-field selection-block">
         <div class="sync-label">选择状态</div>
-        <div class="sync-hint" id="frame-selection-info">请选择至少 2 个 Frame</div>
+        <div class="sync-hint" id="frame-selection-info">请选择至少 2 个 Frame，将按从左到右、从上到下的顺序同步文本</div>
       </div>
 
       <div class="sync-field">
@@ -571,8 +571,8 @@
       <!-- 已按用户要求移除“匹配阈值”和“同步源 Frame”选项，采用默认策略 -->
 
       <div class="sync-field sync-actions">
-        <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>开始同步</button>
-        <button class="btn-secondary sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">停止</button>
+        <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>开始顺序同步</button>
+        <button class="btn-secondary sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">停止</button>                                                                                           
       </div>
 
       <!-- 进度展示 -->
@@ -943,12 +943,12 @@
       const sourceFrameSelect = document.getElementById('sourceFrame');
       
       if (selectedFrames.length < 2) {
-        info.textContent = '请先在画布中选择至少2个Frame';
+        info.textContent = '请先在画布中选择至少2个Frame，将按从左到右、从上到下的顺序同步文本';
         info.className = 'sync-hint';
         syncBtn.disabled = true;
         sourceFrameSelect.disabled = true;
       } else {
-        info.textContent = `已选择 ${selectedFrames.length} 个Frame，请选择源Frame`;
+        info.textContent = `已选择 ${selectedFrames.length} 个Frame，请选择源Frame（将按顺序同步文本）`;
         info.className = 'sync-hint';
         sourceFrameSelect.disabled = false;
         

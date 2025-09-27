@@ -2268,14 +2268,12 @@ async function syncByPositionKey(frameIds, sourceFrameId, threshold, includeSour
   }
 }
 
-// 简化的多帧同步功能（测试版本）
+// 按顺序同步功能（优化版本）
 async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSourceFrame = false, options = {}) {
   try {
-    console.log('开始同步函数，参数:', { frameIds, sourceFrameId, threshold, includeSourceFrame, options });
+    console.log('开始顺序同步函数，参数:', { frameIds, sourceFrameId, threshold, includeSourceFrame, options });
     
     const {
-      nameOnly = false,        // 仅同名匹配模式（极速）
-      cellSize = 0.06,         // 空间网格单元大小
       batchSize = 100,         // 分批写入大小
       dryRun = false           // 干跑模式（仅预览，不写入）
     } = options;
@@ -2332,20 +2330,20 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSour
       return;
     }
     
-    // 简化版本：直接获取文本节点
-    updateProgress(20, '获取文本节点...');
-    console.log('开始获取源Frame文本节点...');
+    // 按顺序提取源Frame的文本
+    updateProgress(20, '按顺序提取文本...');
+    console.log('开始按顺序提取源Frame文本...');
     
-    let sourceTextNodes;
+    let sourceTexts;
     try {
-      sourceTextNodes = getTextNodesInFrame(sourceFrame);
-      console.log(`源Frame "${sourceFrame.name}" 包含 ${sourceTextNodes.length} 个文本节点`);
+      sourceTexts = extractTextsInOrder(sourceFrame);
+      console.log(`源Frame "${sourceFrame.name}" 按顺序提取到 ${sourceTexts.length} 个文本:`, sourceTexts);
     } catch (error) {
-      console.error('获取源Frame文本节点失败:', error);
-      throw new Error(`获取源Frame文本节点失败: ${error.message}`);
+      console.error('按顺序提取文本失败:', error);
+      throw new Error(`按顺序提取文本失败: ${error.message}`);
     }
     
-    if (sourceTextNodes.length === 0) {
+    if (sourceTexts.length === 0) {
       figma.notify('源Frame中没有文本节点');
       figma.ui.postMessage({
         type: 'sync-summary',
@@ -2359,7 +2357,7 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSour
       return;
     }
 
-    // 简化版本：获取目标Frame
+    // 获取目标Frame
     updateProgress(30, '获取目标Frame...');
     console.log('开始获取目标Frame...');
     
@@ -2379,200 +2377,67 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSour
       return;
     }
 
-    let totalMatches = 0;
+    // 按顺序同步到目标Frame
+    updateProgress(40, '按顺序同步到目标Frame...');
     let totalWrites = 0;
-    let totalMisses = 0;
-    let lockedCount = 0;
-    let componentCount = 0;
-    const pendingWrites = []; // 待写入的节点列表
+    let totalSkipped = 0;
 
-    // 简化匹配阶段
-    updateProgress(40, '开始匹配文本节点...');
-    const totalSourceNodes = sourceTextNodes.length;
-    
-    for (let i = 0; i < sourceTextNodes.length; i++) {
+    for (let i = 0; i < targetFrames.length; i++) {
       // 检查是否已取消
       if (isSyncCancelled) {
         figma.ui.postMessage({ type: 'sync-cancelled' });
         return;
       }
       
-      const sourceNode = sourceTextNodes[i];
-      const matchedNodes = [];
+      const targetFrame = targetFrames[i];
+      console.log(`同步到Frame: ${targetFrame.name}`);
       
-      // 更新匹配进度
-      const matchProgress = 40 + Math.floor((i / totalSourceNodes) * 30);
-      updateProgress(matchProgress, `匹配节点 ${i + 1}/${totalSourceNodes}`);
-
-      // 为每个目标Frame找到匹配的节点（简化版本）
-      for (let j = 0; j < targetFrames.length; j++) {
-        const targetFrame = targetFrames[j];
-        try {
-          const targetTextNodes = getTextNodesInFrame(targetFrame);
-          const bestMatch = findBestTextMatchSimple(sourceNode, targetTextNodes, threshold, nameOnly, options && options.anchor || 'center');
-          
-          if (bestMatch) {
-            matchedNodes.push(bestMatch);
-            totalMatches++;
-          } else {
-            totalMisses++;
-          }
-        } catch (error) {
-          console.warn(`处理目标Frame "${targetFrame.name}" 时出错:`, error);
-          totalMisses++;
-        }
+      try {
+        const writes = await replaceTextsInOrder(targetFrame, sourceTexts);
+        totalWrites += writes;
+        console.log(`Frame ${targetFrame.name} 同步完成，写入 ${writes} 个文本`);
+      } catch (error) {
+        console.warn(`同步Frame ${targetFrame.name} 时出错:`, error);
+        totalSkipped++;
       }
 
-      if (matchedNodes.length === 0) continue;
-
-      // 确定统一内容
-      let unifiedContent = sourceNode.characters;
-      if (!unifiedContent || !unifiedContent.trim()) {
-        // 源Frame为空时，使用第一个非空候选
-        for (let k = 0; k < matchedNodes.length; k++) {
-          const node = matchedNodes[k];
-          if (node.characters && node.characters.trim()) {
-            unifiedContent = node.characters;
-            break;
-          }
-        }
-      }
-
-      if (!unifiedContent) continue;
-
-      // 收集需要写入的节点（跳过内容相同的）
-      for (let k = 0; k < matchedNodes.length; k++) {
-        const targetNode = matchedNodes[k];
-        if (targetNode.characters !== unifiedContent) {
-          if (canWriteToNode(targetNode)) {
-            pendingWrites.push({ node: targetNode, content: unifiedContent });
-          } else {
-            // 记录跳过原因
-            if (targetNode.locked) {
-              lockedCount++;
-            } else if (targetNode.type === 'INSTANCE') {
-              componentCount++;
-            }
-          }
-        }
-      }
+      // 更新进度
+      const progress = 40 + Math.floor((i / targetFrames.length) * 50);
+      updateProgress(progress, `同步进度 ${i + 1}/${targetFrames.length}`);
     }
 
     if (dryRun) {
       // 干跑模式：只显示统计信息
-      const message = `预览完成：匹配 ${totalMatches} 处，将写入 ${pendingWrites.length} 个，未匹配 ${totalMisses}`;
-      if (lockedCount > 0 || componentCount > 0) {
-        const skipDetails = [];
-        if (lockedCount > 0) skipDetails.push(`锁定 ${lockedCount}`);
-        if (componentCount > 0) skipDetails.push(`组件 ${componentCount}`);
-        message += `，跳过 ${skipDetails.join('、')} 个`;
-      }
-      
+      const message = `预览完成：将同步 ${sourceTexts.length} 个文本到 ${targetFrames.length} 个Frame`;
       figma.notify(message);
       figma.ui.postMessage({
         type: 'sync-summary',
-        matchCount: totalMatches,
-        replaceCount: pendingWrites.length,
-        unmatchCount: totalMisses,
-        skippedCount: lockedCount + componentCount,
-        lockedCount,
-        componentCount,
+        matchCount: sourceTexts.length,
+        replaceCount: sourceTexts.length * targetFrames.length,
+        unmatchCount: 0,
+        skippedCount: totalSkipped,
+        lockedCount: 0,
+        componentCount: 0,
         dryRun: true
       });
       return;
     }
 
-    if (pendingWrites.length === 0) {
-      figma.notify(`同步完成：匹配 ${totalMatches} 处，无需修改`);
-      figma.ui.postMessage({
-        type: 'sync-summary',
-        matchCount: totalMatches,
-        replaceCount: 0,
-        unmatchCount: totalMisses,
-        skippedCount: lockedCount + componentCount,
-        lockedCount,
-        componentCount
-      });
-      return;
-    }
-
-    // 批量加载字体
-    updateProgress(80, '加载字体...');
-    console.log(`开始批量加载字体，共 ${pendingWrites.length} 个节点`);
-    const fontMap = await collectFontsForNodes(pendingWrites.map(function(w) {
-      return w.node;
-    }));
-    await loadFontsBatch(fontMap);
-    console.log(`字体加载完成，共 ${fontMap.size} 种字体`);
-    
-    // 检查是否已取消
-    if (isSyncCancelled) {
-      figma.ui.postMessage({ type: 'sync-cancelled' });
-      return;
-    }
-
-    // 分批写入，避免阻塞UI
-    updateProgress(85, '写入文本内容...');
-    console.log(`开始分批写入，每批 ${batchSize} 个节点`);
-  for (let i = 0; i < pendingWrites.length; i += batchSize) {
-      // 检查是否已取消
-      if (isSyncCancelled) {
-        figma.ui.postMessage({ type: 'sync-cancelled' });
-        return;
-      }
-      
-      const batch = pendingWrites.slice(i, i + batchSize);
-      
-      for (const write of batch) {
-        try {
-          write.node.characters = write.content;
-          totalWrites++;
-        } catch (error) {
-          // 组件实例兜底：通过实例属性覆盖
-          try {
-            const ok = await trySetTextViaInstanceProperty(write.node, write.content);
-            if (ok) {
-              totalWrites++;
-            } else {
-              console.warn(`写入失败（实例属性匹配不到）: ${write.node.name}`, error);
-            }
-          } catch (e2) {
-            console.warn(`写入失败（实例属性覆盖异常）: ${write.node.name}`, e2);
-          }
-        }
-      }
-      
-      // 更新写入进度
-      const writeProgress = 85 + Math.floor(((i + batchSize) / pendingWrites.length) * 10);
-      updateProgress(Math.min(writeProgress, 95), `写入进度 ${Math.min(i + batchSize, pendingWrites.length)}/${pendingWrites.length}`);
-      
-      // 让出事件循环，避免阻塞UI
-      if (i + batchSize < pendingWrites.length) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-    }
-
     // 发送同步结果
     updateProgress(100, '同步完成！');
-    const message = `同步完成：匹配 ${totalMatches} 处，成功写入 ${totalWrites}，未匹配 ${totalMisses}`;
-    if (lockedCount > 0 || componentCount > 0) {
-      const skipDetails = [];
-      if (lockedCount > 0) skipDetails.push(`锁定 ${lockedCount}`);
-      if (componentCount > 0) skipDetails.push(`组件 ${componentCount}`);
-      message += `，跳过 ${skipDetails.join('、')} 个`;
-    }
+    const message = `同步完成：写入 ${totalWrites} 个文本，跳过 ${totalSkipped} 个Frame`;
     
     figma.notify(message);
-    console.log(`高性能同步完成: ${message}`);
+    console.log(`顺序同步完成: ${message}`);
 
     figma.ui.postMessage({
       type: 'sync-summary',
-      matchCount: totalMatches,
+      matchCount: sourceTexts.length,
       replaceCount: totalWrites,
-      unmatchCount: totalMisses,
-      skippedCount: lockedCount + componentCount,
-      lockedCount,
-      componentCount
+      unmatchCount: 0,
+      skippedCount: totalSkipped,
+      lockedCount: 0,
+      componentCount: 0
     });
 
   } catch (error) {
@@ -2581,6 +2446,106 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSour
       type: 'sync-error',
       error: error.message 
     });
+  }
+}
+
+// 按顺序提取文本（从左到右，从上到下）
+function extractTextsInOrder(frame) {
+  try {
+    // 获取所有文本节点
+    const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+    
+    // 过滤可见节点
+    const visibleNodes = textNodes.filter(function(n){
+      try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
+    });
+    
+    // 按位置排序：先按Y坐标（从上到下），再按X坐标（从左到右）
+    visibleNodes.sort((a, b) => {
+      const aY = a.absoluteBoundingBox.y;
+      const bY = b.absoluteBoundingBox.y;
+      const aX = a.absoluteBoundingBox.x;
+      const bX = b.absoluteBoundingBox.x;
+      
+      // 如果Y坐标相差小于10px，认为是同一行，按X坐标排序
+      if (Math.abs(aY - bY) < 10) {
+        return aX - bX;
+      }
+      // 否则按Y坐标排序
+      return aY - bY;
+    });
+    
+    // 提取文本内容
+    return visibleNodes.map(node => node.characters || '');
+    
+  } catch (error) {
+    console.warn('按顺序提取文本失败，使用递归方式:', error);
+    // 回退到递归方式
+    const textNodes = getTextNodesInFrameRecursive(frame);
+    return textNodes.map(node => node.characters || '');
+  }
+}
+
+// 按顺序替换文本（从左到右，从上到下）
+async function replaceTextsInOrder(frame, texts) {
+  try {
+    // 获取所有文本节点
+    const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+    
+    // 过滤可见节点
+    const visibleNodes = textNodes.filter(function(n){
+      try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
+    });
+    
+    // 按相同规则排序
+    visibleNodes.sort((a, b) => {
+      const aY = a.absoluteBoundingBox.y;
+      const bY = b.absoluteBoundingBox.y;
+      const aX = a.absoluteBoundingBox.x;
+      const bX = b.absoluteBoundingBox.x;
+      
+      // 如果Y坐标相差小于10px，认为是同一行，按X坐标排序
+      if (Math.abs(aY - bY) < 10) {
+        return aX - bX;
+      }
+      // 否则按Y坐标排序
+      return aY - bY;
+    });
+    
+    // 按顺序替换文本
+    let writeCount = 0;
+    const minCount = Math.min(texts.length, visibleNodes.length);
+    
+    for (let i = 0; i < minCount; i++) {
+      const node = visibleNodes[i];
+      const newText = texts[i];
+      
+      // 如果文本内容不同，则替换
+      if (node.characters !== newText) {
+        try {
+          node.characters = newText;
+          writeCount++;
+        } catch (error) {
+          // 组件实例兜底：通过实例属性覆盖
+          try {
+            const ok = await trySetTextViaInstanceProperty(node, newText);
+            if (ok) {
+              writeCount++;
+            } else {
+              console.warn(`写入失败（实例属性匹配不到）: ${node.name}`, error);
+            }
+          } catch (e2) {
+            console.warn(`写入失败（实例属性覆盖异常）: ${node.name}`, e2);
+          }
+        }
+      }
+    }
+    
+    return writeCount;
+    
+  } catch (error) {
+    console.warn('按顺序替换文本失败:', error);
+    throw error;
   }
 }
 
