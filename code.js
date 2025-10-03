@@ -2461,14 +2461,19 @@ function extractTextsInOrder(frame) {
     });
     
     // 按位置排序：先按Y坐标（从上到下），再按X坐标（从左到右）
+    // 使用更宽松的容差，适应不同尺寸的Frame
     visibleNodes.sort((a, b) => {
       const aY = a.absoluteBoundingBox.y;
       const bY = b.absoluteBoundingBox.y;
       const aX = a.absoluteBoundingBox.x;
       const bX = b.absoluteBoundingBox.x;
       
-      // 如果Y坐标相差小于10px，认为是同一行，按X坐标排序
-      if (Math.abs(aY - bY) < 10) {
+      // 使用更宽松的容差（Frame高度的10%或最小50px）
+      const frameHeight = frame.height || 100;
+      const rowTolerance = Math.max(50, frameHeight * 0.1);
+      
+      // 如果Y坐标相差小于容差，认为是同一行，按X坐标排序
+      if (Math.abs(aY - bY) < rowTolerance) {
         return aX - bX;
       }
       // 否则按Y坐标排序
@@ -2504,8 +2509,12 @@ async function replaceTextsInOrder(frame, texts) {
       const aX = a.absoluteBoundingBox.x;
       const bX = b.absoluteBoundingBox.x;
       
-      // 如果Y坐标相差小于10px，认为是同一行，按X坐标排序
-      if (Math.abs(aY - bY) < 10) {
+      // 使用更宽松的容差（Frame高度的10%或最小50px）
+      const frameHeight = frame.height || 100;
+      const rowTolerance = Math.max(50, frameHeight * 0.1);
+      
+      // 如果Y坐标相差小于容差，认为是同一行，按X坐标排序
+      if (Math.abs(aY - bY) < rowTolerance) {
         return aX - bX;
       }
       // 否则按Y坐标排序
