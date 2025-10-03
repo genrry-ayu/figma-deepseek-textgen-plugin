@@ -1048,17 +1048,10 @@
         threshold: threshold,
         includeSourceFrame: includeSourceFrame,
         options: {
-          // 使用简化的默认配置
-          usePositionKey: true,
-          nameOnly: false,
-          useSize: true,
-          dryRun: false,
-          cell: 0.02,
-          tol: 0.06,
-          nameFirst: true,
-          posOnly: false,
+          // 使用新的按顺序同步算法
+          usePositionKey: false,
           batchSize: 100,
-          anchor: 'topleft' // 列表类布局更稳：使用左上角作为锚点
+          dryRun: false
         }
       };
       

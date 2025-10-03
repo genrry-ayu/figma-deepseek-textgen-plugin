@@ -86,23 +86,9 @@ figma.ui.onmessage = async (msg) => {
           });
           
           // 检查是否使用高性能位置键算法
-          if (msg.options && msg.options.usePositionKey) {
-            console.log('使用高性能位置键算法');
-            console.log('调用参数:', {
-              frameIds: msg.frameIds,
-              sourceFrameId: msg.sourceFrameId,
-              threshold: msg.threshold,
-              includeSourceFrame: msg.includeSourceFrame,
-              options: msg.options
-            });
-            
-            const syncPromise = syncByPositionKey(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
-            await Promise.race([syncPromise, timeoutPromise]);
-          } else {
-            console.log('使用简化同步算法');
-            const syncPromise = syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
-            await Promise.race([syncPromise, timeoutPromise]);
-          }
+          console.log('使用按顺序同步算法');
+          const syncPromise = syncFrames(msg.frameIds, msg.sourceFrameId, msg.threshold, msg.includeSourceFrame, msg.options);
+          await Promise.race([syncPromise, timeoutPromise]);
         } catch (error) {
           console.error('同步过程中发生错误:', error);
           figma.ui.postMessage({
