@@ -757,10 +757,23 @@
     
     // 初始化
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('页面加载完成');
+      
       checkSelection();
       
       // 监听选择变化
       parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+      
+      // 测试按钮点击事件
+      const syncBtn = document.getElementById('syncBtn');
+      if (syncBtn) {
+        console.log('同步按钮找到，添加测试事件监听器');
+        syncBtn.addEventListener('click', function() {
+          console.log('按钮点击事件被触发');
+        });
+      } else {
+        console.error('未找到同步按钮');
+      }
       
       // 先尝试从本地 localStorage 加载 API Key（跨文件/跨账号同机持久）
       try {
@@ -1098,28 +1111,60 @@
     // 更新同步按钮状态
     function updateSyncButtonState() {
       const syncBtn = document.getElementById('syncBtn');
-      const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+      const sourceTypeElement = document.querySelector('input[name="sourceType"]:checked');
       
+      if (!sourceTypeElement) {
+        console.error('未找到选中的源类型元素');
+        syncBtn.disabled = true;
+        return;
+      }
+      
+      const sourceType = sourceTypeElement.value;
       let canSync = false;
+      
+      console.log('更新按钮状态 - 源类型:', sourceType, '选中Frame数量:', selectedFrames.length);
       
       if (sourceType === 'frame') {
         const sourceFrameId = document.getElementById('sourceFrame').value;
         canSync = selectedFrames.length >= 2 && sourceFrameId;
+        console.log('Frame模式 - 源Frame ID:', sourceFrameId, '可以同步:', canSync);
       } else if (sourceType === 'image') {
         canSync = selectedFrames.length >= 1 && window.uploadedImageData;
+        console.log('图片模式 - 有图片数据:', !!window.uploadedImageData, '可以同步:', canSync);
       }
       
       syncBtn.disabled = !canSync;
+      console.log('按钮状态更新 - 禁用:', syncBtn.disabled);
     }
 
     // 执行多帧同步
     function syncFrames() {
-      const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+      console.log('syncFrames函数被调用');
       
-      if (sourceType === 'frame') {
-        syncFramesFromFrame();
-      } else if (sourceType === 'image') {
-        syncFramesFromImage();
+      try {
+        const sourceTypeElement = document.querySelector('input[name="sourceType"]:checked');
+        if (!sourceTypeElement) {
+          console.error('未找到选中的源类型');
+          showStatus('请选择同步源类型', 'error');
+          return;
+        }
+        
+        const sourceType = sourceTypeElement.value;
+        console.log('源类型:', sourceType);
+        
+        if (sourceType === 'frame') {
+          console.log('执行Frame同步');
+          syncFramesFromFrame();
+        } else if (sourceType === 'image') {
+          console.log('执行图片同步');
+          syncFramesFromImage();
+        } else {
+          console.error('未知的源类型:', sourceType);
+          showStatus('未知的源类型: ' + sourceType, 'error');
+        }
+      } catch (error) {
+        console.error('syncFrames函数执行出错:', error);
+        showStatus('同步函数执行出错: ' + error.message, 'error');
       }
     }
 
