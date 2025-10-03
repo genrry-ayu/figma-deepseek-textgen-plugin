@@ -2864,6 +2864,12 @@ async function handleOCRSync(imageData, frameIds, options = {}) {
     const ocrText = await performOCR(imageData);
     console.log('OCR识别结果:', ocrText);
     
+    // 显示OCR结果给用户
+    figma.ui.postMessage({
+      type: 'ocr-result-display',
+      text: ocrText
+    });
+    
     if (!ocrText || ocrText.trim().length === 0) {
       throw new Error('OCR识别失败，未检测到文字内容');
     }
@@ -2927,18 +2933,38 @@ async function handleOCRSync(imageData, frameIds, options = {}) {
 // OCR识别函数
 async function performOCR(imageData) {
   try {
-    // 由于Figma插件环境限制，这里使用简化的OCR模拟
-    // 在实际应用中，可以集成真实的OCR服务
     console.log('执行OCR识别...');
     
-    // 模拟OCR识别过程
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 这里应该调用真实的OCR API
-    // 暂时返回模拟数据用于测试
-    const mockOCRText = "1. 系统目标\n使用多维表格构建面向客户、销售机会和订单的快速集成销售系统。涵盖客户管理、销售管道跟踪、订单结算和绩效追踪功能。减少人工销售工作量并提升转化率。";
-    
-    return mockOCRText;
+    // 由于Figma插件环境限制，无法直接使用Tesseract.js
+    // 这里发送图片数据到UI层进行OCR识别
+    return new Promise((resolve, reject) => {
+      // 设置超时
+      const timeout = setTimeout(() => {
+        reject(new Error('OCR识别超时'));
+      }, 30000);
+      
+      // 监听OCR结果
+      const handleOCRResult = (event) => {
+        if (event.data.pluginMessage && event.data.pluginMessage.type === 'ocr-result') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handleOCRResult);
+          
+          if (event.data.pluginMessage.success) {
+            resolve(event.data.pluginMessage.text);
+          } else {
+            reject(new Error(event.data.pluginMessage.error || 'OCR识别失败'));
+          }
+        }
+      };
+      
+      window.addEventListener('message', handleOCRResult);
+      
+      // 发送图片数据到UI层进行OCR识别
+      figma.ui.postMessage({
+        type: 'perform-ocr',
+        imageData: imageData
+      });
+    });
     
   } catch (error) {
     console.error('OCR识别失败:', error);
@@ -2968,10 +2994,16 @@ function intelligentSplitOCR(ocrText, frames) {
     let segments = splitByPunctuation(ocrText);
     console.log('标点符号分割结果:', segments);
     
-    // 策略2：按换行符分割
+    // 策略2：按换行符分割（精确）
+    if (segments.length === 0) {
+      segments = splitByLinesPrecise(ocrText);
+      console.log('换行符分割结果（精确）:', segments);
+    }
+    
+    // 策略2.1：按换行符分割（备用）
     if (segments.length === 0) {
       segments = splitByLines(ocrText);
-      console.log('换行符分割结果:', segments);
+      console.log('换行符分割结果（备用）:', segments);
     }
     
     // 策略3：按平均长度分割
@@ -3017,6 +3049,22 @@ function splitByPunctuation(text) {
 function splitByLines(text) {
   const segments = text.split(/\n+/).filter(s => s.trim());
   return segments.map(s => s.trim());
+}
+
+// 按行分割（更精确的换行处理）
+function splitByLinesPrecise(text) {
+  // 先按换行符分割
+  const lines = text.split(/\r?\n/);
+  const segments = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) {
+      segments.push(trimmed);
+    }
+  }
+  
+  return segments;
 }
 
 // 按平均长度分割
