@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>文案生成助手</title>
+  <script src="https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -563,9 +564,33 @@
 
       <div class="sync-field">
         <div class="sync-label">同步源</div>
+        <div class="source-options" style="margin-bottom: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <input type="radio" name="sourceType" value="frame" checked onchange="toggleSourceType()">
+            <span style="font-size: 12px; color: #222222;">选择Frame作为源</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px;">
+            <input type="radio" name="sourceType" value="image" onchange="toggleSourceType()">
+            <span style="font-size: 12px; color: #222222;">上传图片作为源</span>
+          </label>
+        </div>
+        
+        <!-- Frame选择器 -->
         <select class="sync-select" id="sourceFrame" onchange="updateSourceFrameInfo()">
           <option value="">请选择内容来源的 Frame</option>
         </select>
+        
+        <!-- 图片上传器 -->
+        <div class="image-upload" id="imageUpload" style="display: none;">
+          <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(this)" style="display: none;">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('imageInput').click()" style="margin-bottom: 8px;">
+            选择图片
+          </button>
+          <div class="image-preview" id="imagePreview" style="max-width: 100%; max-height: 200px; border: 1px solid #CCCCCC; border-radius: 4px; overflow: hidden; display: none;">
+            <img id="previewImg" style="width: 100%; height: auto; display: block;">
+          </div>
+          <div class="image-info" id="imageInfo" style="font-size: 11px; color: #666; margin-top: 4px; display: none;"></div>
+        </div>
       </div>
 
       <!-- 已按用户要求移除“匹配阈值”和“同步源 Frame”选项，采用默认策略 -->
@@ -961,7 +986,7 @@
         }
         
         // 检查是否可以开始同步
-        checkSyncButtonState();
+        updateSyncButtonState();
       }
     }
     
@@ -1014,8 +1039,92 @@
       syncBtn.disabled = !sourceFrameSelect.value || selectedFrames.length < 2;
     }
     
+    // 切换同步源类型
+    function toggleSourceType() {
+      const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+      const frameSelect = document.getElementById('sourceFrame');
+      const imageUpload = document.getElementById('imageUpload');
+      
+      if (sourceType === 'frame') {
+        frameSelect.style.display = 'block';
+        imageUpload.style.display = 'none';
+      } else if (sourceType === 'image') {
+        frameSelect.style.display = 'none';
+        imageUpload.style.display = 'block';
+      }
+      
+      // 更新同步按钮状态
+      updateSyncButtonState();
+    }
+
+    // 处理图片上传
+    function handleImageUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      
+      // 检查文件类型
+      if (!file.type.startsWith('image/')) {
+        showStatus('请选择图片文件', 'error');
+        return;
+      }
+      
+      // 检查文件大小（限制10MB）
+      if (file.size > 10 * 1024 * 1024) {
+        showStatus('图片文件过大，请选择小于10MB的图片', 'error');
+        return;
+      }
+      
+      // 显示图片预览
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const previewImg = document.getElementById('previewImg');
+        const imagePreview = document.getElementById('imagePreview');
+        const imageInfo = document.getElementById('imageInfo');
+        
+        previewImg.src = e.target.result;
+        imagePreview.style.display = 'block';
+        imageInfo.textContent = `文件: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`;
+        imageInfo.style.display = 'block';
+        
+        // 存储图片数据
+        window.uploadedImageData = e.target.result;
+        
+        // 更新同步按钮状态
+        updateSyncButtonState();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // 更新同步按钮状态
+    function updateSyncButtonState() {
+      const syncBtn = document.getElementById('syncBtn');
+      const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+      
+      let canSync = false;
+      
+      if (sourceType === 'frame') {
+        const sourceFrameId = document.getElementById('sourceFrame').value;
+        canSync = selectedFrames.length >= 2 && sourceFrameId;
+      } else if (sourceType === 'image') {
+        canSync = selectedFrames.length >= 1 && window.uploadedImageData;
+      }
+      
+      syncBtn.disabled = !canSync;
+    }
+
     // 执行多帧同步
     function syncFrames() {
+      const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+      
+      if (sourceType === 'frame') {
+        syncFramesFromFrame();
+      } else if (sourceType === 'image') {
+        syncFramesFromImage();
+      }
+    }
+
+    // 从Frame同步
+    function syncFramesFromFrame() {
       if (selectedFrames.length < 2) {
         showStatus('请先选择至少2个Frame', 'error');
         return;
@@ -1056,6 +1165,44 @@
       };
       
       console.log('发送同步消息:', messageData);
+      
+      parent.postMessage({ 
+        pluginMessage: messageData
+      }, '*');
+    }
+
+    // 从图片同步
+    function syncFramesFromImage() {
+      if (selectedFrames.length < 1) {
+        showStatus('请先选择至少1个Frame', 'error');
+        return;
+      }
+
+      if (!window.uploadedImageData) {
+        showStatus('请先上传图片', 'error');
+        return;
+      }
+
+      // 重置取消状态
+      isSyncCancelled = false;
+      
+      // 显示进度界面
+      showProgress();
+      hideStatus();
+
+      const messageData = {
+        type: 'ocr-sync',
+        imageData: window.uploadedImageData,
+        frameIds: selectedFrames.map(function(frame) {
+          return frame.id;
+        }),
+        options: {
+          batchSize: 100,
+          dryRun: false
+        }
+      };
+      
+      console.log('发送OCR同步消息:', messageData);
       
       parent.postMessage({ 
         pluginMessage: messageData

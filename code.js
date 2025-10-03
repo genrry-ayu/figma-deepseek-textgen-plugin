@@ -109,6 +109,9 @@ figma.ui.onmessage = async (msg) => {
         isTranslateCancelled = true;
         figma.ui.postMessage({ type: 'translate-cancelled' });
         break;
+      case 'ocr-sync':
+        await handleOCRSync(msg.imageData, msg.frameIds, msg.options);
+        break;
     }
   } catch (error) {
     console.error('插件错误:', error);
@@ -2832,6 +2835,214 @@ async function trySetTextViaInstanceProperty(textNode, value) {
   }
 }
 
+// OCR同步处理函数
+async function handleOCRSync(imageData, frameIds, options = {}) {
+  try {
+    console.log('开始OCR同步，参数:', { frameIds, options });
+    
+    updateProgress(5, '获取Frame节点...');
+    
+    // 获取所有Frame节点
+    const frames = [];
+    for (let i = 0; i < frameIds.length; i++) {
+      const id = frameIds[i];
+      const node = await figma.getNodeByIdAsync(id);
+      if (node && isSyncContainer(node)) {
+        frames.push(node);
+      }
+    }
+    
+    if (frames.length === 0) {
+      throw new Error('未找到有效的Frame节点');
+    }
+    
+    console.log(`找到 ${frames.length} 个Frame:`, frames.map(f => f.name));
+    
+    updateProgress(15, 'OCR识别中...');
+    
+    // 执行OCR识别
+    const ocrText = await performOCR(imageData);
+    console.log('OCR识别结果:', ocrText);
+    
+    if (!ocrText || ocrText.trim().length === 0) {
+      throw new Error('OCR识别失败，未检测到文字内容');
+    }
+    
+    updateProgress(30, '智能分割文本...');
+    
+    // 智能分割OCR文本
+    const textSegments = intelligentSplitOCR(ocrText, frames);
+    console.log('分割结果:', textSegments);
+    
+    updateProgress(50, '按顺序同步到Frame...');
+    
+    // 按顺序同步到每个Frame
+    let totalWrites = 0;
+    let totalSkipped = 0;
+    
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+      const texts = textSegments[i] || [];
+      
+      console.log(`同步到Frame: ${frame.name}，文本数量: ${texts.length}`);
+      
+      try {
+        const writes = await replaceTextsInOrder(frame, texts);
+        totalWrites += writes;
+        console.log(`Frame ${frame.name} 同步完成，写入 ${writes} 个文本`);
+      } catch (error) {
+        console.warn(`同步Frame ${frame.name} 时出错:`, error);
+        totalSkipped++;
+      }
+      
+      // 更新进度
+      const progress = 50 + Math.floor((i / frames.length) * 40);
+      updateProgress(progress, `同步进度 ${i + 1}/${frames.length}`);
+    }
+    
+    updateProgress(100, 'OCR同步完成');
+    
+    const message = `OCR同步完成：写入 ${totalWrites} 个文本，跳过 ${totalSkipped} 个Frame`;
+    figma.notify(message);
+    
+    figma.ui.postMessage({
+      type: 'sync-summary',
+      matchCount: textSegments.flat().length,
+      replaceCount: totalWrites,
+      unmatchCount: 0,
+      skippedCount: totalSkipped,
+      lockedCount: 0,
+      componentCount: 0
+    });
+    
+  } catch (error) {
+    console.error('OCR同步失败:', error);
+    figma.ui.postMessage({
+      type: 'sync-error',
+      error: error.message
+    });
+  }
+}
+
+// OCR识别函数
+async function performOCR(imageData) {
+  try {
+    // 由于Figma插件环境限制，这里使用简化的OCR模拟
+    // 在实际应用中，可以集成真实的OCR服务
+    console.log('执行OCR识别...');
+    
+    // 模拟OCR识别过程
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 这里应该调用真实的OCR API
+    // 暂时返回模拟数据用于测试
+    const mockOCRText = "1. 系统目标\n使用多维表格构建面向客户、销售机会和订单的快速集成销售系统。涵盖客户管理、销售管道跟踪、订单结算和绩效追踪功能。减少人工销售工作量并提升转化率。";
+    
+    return mockOCRText;
+    
+  } catch (error) {
+    console.error('OCR识别失败:', error);
+    throw new Error('OCR识别失败: ' + error.message);
+  }
+}
+
+// 智能分割OCR文本
+function intelligentSplitOCR(ocrText, frames) {
+  try {
+    console.log('开始智能分割OCR文本:', ocrText);
+    
+    // 获取每个Frame的文本节点数量
+    const frameTextCounts = frames.map(frame => {
+      try {
+        const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+        return textNodes.filter(n => n.visible !== false).length;
+      } catch (error) {
+        console.warn(`获取Frame ${frame.name} 文本节点失败:`, error);
+        return 0;
+      }
+    });
+    
+    console.log('Frame文本节点数量:', frameTextCounts);
+    
+    // 策略1：按标点符号分割
+    let segments = splitByPunctuation(ocrText);
+    console.log('标点符号分割结果:', segments);
+    
+    // 策略2：按换行符分割
+    if (segments.length === 0) {
+      segments = splitByLines(ocrText);
+      console.log('换行符分割结果:', segments);
+    }
+    
+    // 策略3：按平均长度分割
+    if (segments.length === 0) {
+      const totalTextNodes = frameTextCounts.reduce((sum, count) => sum + count, 0);
+      segments = splitByAverageLength(ocrText, totalTextNodes);
+      console.log('平均长度分割结果:', segments);
+    }
+    
+    // 按Frame分配文本
+    const frameSegments = [];
+    let segmentIndex = 0;
+    
+    for (let i = 0; i < frames.length; i++) {
+      const textCount = frameTextCounts[i];
+      const frameTexts = [];
+      
+      for (let j = 0; j < textCount && segmentIndex < segments.length; j++) {
+        frameTexts.push(segments[segmentIndex]);
+        segmentIndex++;
+      }
+      
+      frameSegments.push(frameTexts);
+    }
+    
+    console.log('最终分配结果:', frameSegments);
+    return frameSegments;
+    
+  } catch (error) {
+    console.error('智能分割失败:', error);
+    // 回退到简单分割
+    return frames.map(() => []);
+  }
+}
+
+// 按标点符号分割
+function splitByPunctuation(text) {
+  const segments = text.split(/[。！？\n\r]+/).filter(s => s.trim());
+  return segments.map(s => s.trim());
+}
+
+// 按换行符分割
+function splitByLines(text) {
+  const segments = text.split(/\n+/).filter(s => s.trim());
+  return segments.map(s => s.trim());
+}
+
+// 按平均长度分割
+function splitByAverageLength(text, targetCount) {
+  if (targetCount <= 0) return [];
+  
+  const avgLength = Math.floor(text.length / targetCount);
+  const segments = [];
+  let currentIndex = 0;
+  
+  for (let i = 0; i < targetCount; i++) {
+    let segmentLength = avgLength;
+    
+    // 最后一个段落获取剩余所有文本
+    if (i === targetCount - 1) {
+      segmentLength = text.length - currentIndex;
+    }
+    
+    const segment = text.substring(currentIndex, currentIndex + segmentLength);
+    segments.push(segment.trim());
+    currentIndex += segmentLength;
+  }
+  
+  return segments.filter(s => s.length > 0);
+}
+
 // 初始化时检查选择和加载 API Key
-try { const p0 = handleSelectionChange(); if (p0 && typeof p0.catch === 'function') p0.catch(e => console.error('init handleSelectionChange error:', e)); } catch (e) { console.error('init selection error:', e); }
+try { const p0 = handleSelectionChange(); if (p0 && typeof p0.catch === 'function') p0.catch(e => console.error('init handleSelectionChange error:', e)); } catch (e) { console.error('init selection error:', e); }   
 loadApiKey();
