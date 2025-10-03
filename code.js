@@ -2513,6 +2513,27 @@ async function replaceTextsInOrder(frame, texts) {
       return aX - bX;
     });
     
+    // 预加载目标Frame中所有文本节点的字体
+    const fontSet = new Set();
+    for (const node of visibleNodes) {
+      try {
+        if (node.fontName !== figma.mixed) {
+          const fontKey = `${node.fontName.family}__${node.fontName.style}`;
+          fontSet.add(fontKey);
+        }
+      } catch (_) {}
+    }
+    
+    // 批量加载字体
+    for (const fontKey of fontSet) {
+      try {
+        const [family, style] = fontKey.split('__');
+        await figma.loadFontAsync({ family, style });
+      } catch (error) {
+        console.warn(`字体加载失败: ${fontKey}`, error);
+      }
+    }
+    
     // 按顺序替换文本
     let writeCount = 0;
     const minCount = Math.min(texts.length, visibleNodes.length);
