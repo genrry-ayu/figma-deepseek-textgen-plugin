@@ -112,6 +112,23 @@ figma.ui.onmessage = async (msg) => {
       case 'ocr-sync':
         await handleOCRSync(msg.imageData, msg.frameIds, msg.options);
         break;
+      case 'ocr-result':
+        // 处理OCR识别结果
+        if (window.ocrTimeout) {
+          clearTimeout(window.ocrTimeout);
+          window.ocrTimeout = null;
+        }
+        
+        if (msg.success && window.ocrResolve) {
+          window.ocrResolve(msg.text);
+          window.ocrResolve = null;
+          window.ocrReject = null;
+        } else if (window.ocrReject) {
+          window.ocrReject(new Error(msg.error || 'OCR识别失败'));
+          window.ocrResolve = null;
+          window.ocrReject = null;
+        }
+        break;
     }
   } catch (error) {
     console.error('插件错误:', error);
@@ -2943,21 +2960,10 @@ async function performOCR(imageData) {
         reject(new Error('OCR识别超时'));
       }, 30000);
       
-      // 监听OCR结果
-      const handleOCRResult = (event) => {
-        if (event.data.pluginMessage && event.data.pluginMessage.type === 'ocr-result') {
-          clearTimeout(timeout);
-          window.removeEventListener('message', handleOCRResult);
-          
-          if (event.data.pluginMessage.success) {
-            resolve(event.data.pluginMessage.text);
-          } else {
-            reject(new Error(event.data.pluginMessage.error || 'OCR识别失败'));
-          }
-        }
-      };
-      
-      window.addEventListener('message', handleOCRResult);
+      // 存储resolve和reject函数，供消息处理器使用
+      window.ocrResolve = resolve;
+      window.ocrReject = reject;
+      window.ocrTimeout = timeout;
       
       // 发送图片数据到UI层进行OCR识别
       figma.ui.postMessage({
