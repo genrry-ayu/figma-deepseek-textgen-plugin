@@ -14,7 +14,8 @@
     "allowedDomains": [
       "https://api.deepseek.com",
       "https://unpkg.com",
-      "https://cdn.jsdelivr.net"
+      "https://cdn.jsdelivr.net",
+      "https://tessdata.projectnaptha.com"
     ]
   }
 }
