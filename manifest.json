@@ -12,7 +12,9 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
-      "https://api.deepseek.com"
+      "https://api.deepseek.com",
+      "https://unpkg.com",
+      "https://cdn.jsdelivr.net"
     ]
   }
 }
