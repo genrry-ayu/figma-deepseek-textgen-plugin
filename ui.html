@@ -1377,7 +1377,7 @@
       }, '*');
     }
 
-    // 图片预处理函数
+    // 图片预处理函数 - 增强版
     function preprocessImage(imageData) {
       return new Promise((resolve) => {
         const img = new Image();
@@ -1386,13 +1386,12 @@
           const ctx = canvas.getContext('2d');
           
           // 设置画布尺寸，适当放大以提高识别准确性
-          const scale = Math.max(2, Math.min(4, 1000 / Math.max(img.width, img.height)));
+          const scale = Math.max(3, Math.min(6, 2000 / Math.max(img.width, img.height)));
           canvas.width = img.width * scale;
           canvas.height = img.height * scale;
           
-          // 启用图像平滑
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
+          // 禁用图像平滑，保持文字边缘清晰
+          ctx.imageSmoothingEnabled = false;
           
           // 绘制放大的原图
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -1401,7 +1400,11 @@
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
           
-          // 图片增强处理
+          // 多种预处理策略
+          const processedImages = [];
+          
+          // 策略1：高对比度二值化
+          const highContrastData = new Uint8ClampedArray(data);
           for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
@@ -1410,61 +1413,98 @@
             // 转换为灰度
             const gray = 0.299 * r + 0.587 * g + 0.114 * b;
             
-            // 增强对比度和亮度
+            // 高对比度处理
             let enhanced = gray;
-            
-            // 自适应对比度增强
-            if (gray < 100) {
-              enhanced = Math.max(0, gray * 0.5); // 大幅加深暗色
-            } else if (gray < 150) {
-              enhanced = gray * 0.8; // 适度加深中暗色
+            if (gray < 120) {
+              enhanced = Math.max(0, gray * 0.3); // 大幅加深暗色
             } else {
-              enhanced = Math.min(255, gray * 1.3); // 提亮亮色
+              enhanced = Math.min(255, gray * 1.5); // 大幅提亮亮色
             }
             
-            // 二值化处理 - 使用动态阈值
-            const threshold = 140; // 提高阈值，减少噪点
-            const binary = enhanced > threshold ? 255 : 0;
+            // 二值化
+            const binary = enhanced > 100 ? 255 : 0;
             
-            data[i] = binary;     // R
-            data[i + 1] = binary; // G
-            data[i + 2] = binary; // B
-            data[i + 3] = 255;    // A (确保不透明)
+            highContrastData[i] = binary;     // R
+            highContrastData[i + 1] = binary; // G
+            highContrastData[i + 2] = binary; // B
+            highContrastData[i + 3] = 255;    // A
           }
           
-          // 将处理后的数据放回画布
-          ctx.putImageData(imageData, 0, 0);
+          const highContrastCanvas = document.createElement('canvas');
+          highContrastCanvas.width = canvas.width;
+          highContrastCanvas.height = canvas.height;
+          const highContrastCtx = highContrastCanvas.getContext('2d');
+          highContrastCtx.putImageData(new ImageData(highContrastData, canvas.width, canvas.height), 0, 0);
+          processedImages.push(highContrastCanvas.toDataURL('image/png'));
           
-          // 返回处理后的图片数据
-          resolve(canvas.toDataURL('image/png'));
+          // 策略2：中对比度二值化
+          const midContrastData = new Uint8ClampedArray(data);
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            // 中对比度处理
+            let enhanced = gray;
+            if (gray < 140) {
+              enhanced = Math.max(0, gray * 0.6);
+            } else {
+              enhanced = Math.min(255, gray * 1.2);
+            }
+            
+            const binary = enhanced > 130 ? 255 : 0;
+            
+            midContrastData[i] = binary;
+            midContrastData[i + 1] = binary;
+            midContrastData[i + 2] = binary;
+            midContrastData[i + 3] = 255;
+          }
+          
+          const midContrastCanvas = document.createElement('canvas');
+          midContrastCanvas.width = canvas.width;
+          midContrastCanvas.height = canvas.height;
+          const midContrastCtx = midContrastCanvas.getContext('2d');
+          midContrastCtx.putImageData(new ImageData(midContrastData, canvas.width, canvas.height), 0, 0);
+          processedImages.push(midContrastCanvas.toDataURL('image/png'));
+          
+          // 策略3：保留原始放大图（彩色）
+          processedImages.push(canvas.toDataURL('image/png'));
+          
+          resolve(processedImages);
         };
         img.src = imageData;
       });
     }
 
-    // 执行OCR识别
+    // 执行OCR识别 - 增强版
     async function performOCRRecognition(imageData) {
       try {
         console.log('开始OCR识别...');
         
         // 预处理图片以提高识别准确性
         console.log('预处理图片中...');
-        const processedImageData = await preprocessImage(imageData);
+        const processedImages = await preprocessImage(imageData);
+        console.log(`生成了 ${processedImages.length} 个预处理图片`);
         
-        // 尝试多种语言配置和参数
+        // 优化的OCR配置
         const ocrConfigs = [
+          // 配置1：英文优先，适合英文文本
           {
-            lang: 'chi_sim+eng',
+            lang: 'eng',
             options: {
-          logger: m => {
-            if (m.status === 'recognizing text') {
-              console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
-            }
+              logger: m => {
+                if (m.status === 'recognizing text') {
+                  console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+                }
               },
-              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz一丁七万丈三上下不与丑专世丘丙业丛东丝丢两严丧个中丰串临丸丹为主丽举乃久么义之乌乍乎乏乐乒乓乔乖乘乙九也习乡书买乱乳了予争事二于亏云互五井亚些亡交亥亦产亨亩享京亭亮亲亻',
-              tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
             }
           },
+          // 配置2：中英混合，适合混合文本
           {
             lang: 'eng+chi_sim',
             options: {
@@ -1473,19 +1513,34 @@
                   console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
                 }
               },
-              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz一丁七万丈三上下不与丑专世丘丙业丛东丝丢两严丧个中丰串临丸丹为主丽举乃久么义之乌乍乎乏乐乒乓乔乖乘乙九也习乡书买乱乳了予争事二于亏云互五井亚些亡交亥亦产亨亩享京亭亮亲亻',
-              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK
+              tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
             }
           },
+          // 配置3：中文优先
           {
-            lang: 'chi_sim',
+            lang: 'chi_sim+eng',
             options: {
               logger: m => {
                 if (m.status === 'recognizing text') {
                   console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
                 }
               },
-              tessedit_pageseg_mode: Tesseract.PSM.AUTO
+              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+            }
+          },
+          // 配置4：稀疏文本模式
+          {
+            lang: 'eng',
+            options: {
+              logger: m => {
+                if (m.status === 'recognizing text') {
+                  console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+                }
+              },
+              tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
             }
           }
         ];
@@ -1493,28 +1548,33 @@
         let bestResult = null;
         let bestConfidence = 0;
         
-        // 尝试不同的配置
-        for (let i = 0; i < ocrConfigs.length; i++) {
-          const config = ocrConfigs[i];
-          console.log(`尝试OCR配置 ${i + 1}: ${config.lang}`);
+        // 尝试不同的图片和配置组合
+        for (let imgIndex = 0; imgIndex < processedImages.length; imgIndex++) {
+          const processedImage = processedImages[imgIndex];
+          console.log(`尝试预处理图片 ${imgIndex + 1}/${processedImages.length}`);
           
-          try {
-            const { data: { text, confidence } } = await Tesseract.recognize(
-              processedImageData, 
-              config.lang, 
-              config.options
-            );
+          for (let configIndex = 0; configIndex < ocrConfigs.length; configIndex++) {
+            const config = ocrConfigs[configIndex];
+            console.log(`尝试OCR配置 ${configIndex + 1}: ${config.lang}`);
             
-            console.log(`配置 ${i + 1} 结果:`, text, '置信度:', confidence);
-            
-            // 选择置信度最高的结果
-            if (confidence > bestConfidence && text && text.trim().length > 0) {
-              bestResult = text;
-              bestConfidence = confidence;
+            try {
+              const { data: { text, confidence } } = await Tesseract.recognize(
+                processedImage, 
+                config.lang, 
+                config.options
+              );
+              
+              console.log(`图片${imgIndex + 1} 配置${configIndex + 1} 结果:`, text, '置信度:', confidence);
+              
+              // 选择置信度最高的结果
+              if (confidence > bestConfidence && text && text.trim().length > 0) {
+                bestResult = text;
+                bestConfidence = confidence;
+              }
+            } catch (configError) {
+              console.warn(`图片${imgIndex + 1} 配置${configIndex + 1} 失败:`, configError);
+              continue;
             }
-          } catch (configError) {
-            console.warn(`配置 ${i + 1} 失败:`, configError);
-            continue;
           }
         }
         
@@ -1524,13 +1584,15 @@
           try {
             const { data: { text, confidence } } = await Tesseract.recognize(
               imageData, 
-              'chi_sim+eng', 
+              'eng', 
               {
                 logger: m => {
                   if (m.status === 'recognizing text') {
                     console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
                   }
-                }
+                },
+                tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
               }
             );
             
@@ -1550,8 +1612,12 @@
           throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
         }
         
+        // 后处理：修复常见的OCR错误
+        const correctedText = postProcessOCRResult(bestResult);
+        console.log('后处理结果:', correctedText);
+        
         // 清理识别结果
-        const cleanedText = bestResult
+        const cleanedText = correctedText
           .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, '') // 移除特殊字符，保留中文、英文、数字和空格
           .replace(/\s+/g, ' ') // 合并多个空格
           .trim();
@@ -1581,6 +1647,44 @@
           throw new Error(`OCR识别失败: ${error.message}`);
         }
       }
+    }
+
+    // OCR后处理函数，修复常见错误
+    function postProcessOCRResult(text) {
+      if (!text) return text;
+      
+      let corrected = text;
+      
+      // 修复常见的字符识别错误
+      const corrections = [
+        // 修复缺失的字母
+        { pattern: /ime\b/g, replacement: 'time' }, // ime -> time
+        { pattern: /lime\b/g, replacement: 'time' }, // lime -> time
+        { pattern: /tme\b/g, replacement: 'time' }, // tme -> time
+        { pattern: /tirne\b/g, replacement: 'time' }, // tirne -> time
+        { pattern: /tlme\b/g, replacement: 'time' }, // tlme -> time
+        
+        // 修复其他常见错误
+        { pattern: /O/g, replacement: '0' }, // 大写O -> 数字0
+        { pattern: /I/g, replacement: '1' }, // 大写I -> 数字1
+        { pattern: /S/g, replacement: '5' }, // 大写S -> 数字5
+        { pattern: /B/g, replacement: '8' }, // 大写B -> 数字8
+        
+        // 修复连字符问题
+        { pattern: /-\s+/g, replacement: '-' }, // 连字符后的空格
+        { pattern: /\s+-/g, replacement: '-' }, // 连字符前的空格
+        
+        // 修复多余的空格
+        { pattern: /\s+/g, replacement: ' ' }, // 多个空格合并为一个
+      ];
+      
+      // 应用所有修正
+      for (const correction of corrections) {
+        corrected = corrected.replace(correction.pattern, correction.replacement);
+      }
+      
+      console.log('OCR后处理:', text, '->', corrected);
+      return corrected;
     }
 
 
