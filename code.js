@@ -2881,14 +2881,9 @@ async function handleOCRSync(imageData, frameIds, options = {}) {
     const ocrText = await performOCR(imageData);
     console.log('OCR识别结果:', ocrText);
     
-    // 显示OCR结果给用户
-    figma.ui.postMessage({
-      type: 'ocr-result-display',
-      text: ocrText
-    });
     
     if (!ocrText || ocrText.trim().length === 0) {
-      throw new Error('OCR识别失败，未检测到文字内容');
+      throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
     }
     
     updateProgress(30, '智能分割文本...');
@@ -2980,7 +2975,19 @@ async function performOCR(imageData) {
     
   } catch (error) {
     console.error('OCR识别失败:', error);
-    throw new Error('OCR识别失败: ' + error.message);
+    
+    // 提供更具体的错误信息
+    if (error.message.includes('网络连接失败')) {
+      throw error; // 保持原有的详细错误信息
+    } else if (error.message.includes('超时')) {
+      throw error;
+    } else if (error.message.includes('引擎初始化失败')) {
+      throw error;
+    } else if (error.message.includes('未检测到任何文字内容')) {
+      throw error;
+    } else {
+      throw new Error(`OCR识别失败: ${error.message}`);
+    }
   }
 }
 

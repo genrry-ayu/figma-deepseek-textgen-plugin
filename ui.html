@@ -1260,7 +1260,7 @@
         console.log('开始OCR识别...');
         
         // 使用Tesseract.js进行OCR识别
-        const { data: { text } } = await Tesseract.recognize(imageData, 'eng+chi_sim', {
+        const { data: { text, confidence } } = await Tesseract.recognize(imageData, 'eng+chi_sim', {
           logger: m => {
             if (m.status === 'recognizing text') {
               console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
@@ -1268,12 +1268,33 @@
           }
         });
         
-        console.log('OCR识别结果:', text);
+        console.log('OCR识别结果:', text, '置信度:', confidence);
+        
+        // 检查识别结果的质量
+        if (!text || text.trim().length === 0) {
+          throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
+        }
+        
+        // 检查置信度（可选）
+        if (confidence < 30) {
+          console.warn('OCR识别置信度较低:', confidence);
+        }
+        
         return text;
         
       } catch (error) {
         console.error('OCR识别失败:', error);
-        throw error;
+        
+        // 提供更具体的错误信息
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          throw new Error('网络连接失败，无法下载OCR训练数据，请检查网络连接');
+        } else if (error.message.includes('timeout')) {
+          throw new Error('OCR识别超时，请尝试使用更清晰的图片');
+        } else if (error.message.includes('worker')) {
+          throw new Error('OCR引擎初始化失败，请重新加载插件');
+        } else {
+          throw new Error(`OCR识别失败: ${error.message}`);
+        }
       }
     }
 
@@ -1305,39 +1326,8 @@
             }
           }, '*');
         }
-      } else if (event.data.pluginMessage && event.data.pluginMessage.type === 'ocr-result-display') {
-        // 显示OCR识别结果
-        showOCRResult(event.data.pluginMessage.text);
-      }
     });
 
-    // 显示OCR识别结果
-    function showOCRResult(ocrText) {
-      const resultDiv = document.createElement('div');
-      resultDiv.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border: 2px solid #007AFF;
-        border-radius: 8px;
-        padding: 20px;
-        max-width: 80%;
-        max-height: 80%;
-        overflow: auto;
-        z-index: 1000;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      `;
-      
-      resultDiv.innerHTML = `
-        <h3 style="margin: 0 0 15px 0; color: #007AFF;">OCR识别结果</h3>
-        <div style="background: #f5f5f5; padding: 15px; border-radius: 4px; white-space: pre-wrap; font-family: monospace; font-size: 14px; line-height: 1.4;">${ocrText}</div>
-        <button onclick="this.parentElement.remove()" style="margin-top: 15px; padding: 8px 16px; background: #007AFF; color: white; border: none; border-radius: 4px; cursor: pointer;">关闭</button>
-      `;
-      
-      document.body.appendChild(resultDiv);
-    }
     
     // 取消同步
     function cancelSync() {
