@@ -590,8 +590,8 @@
           <!-- 图片操作按钮 -->
           <div style="display: flex; gap: 8px; margin-bottom: 8px;">
             <button type="button" class="btn-secondary" onclick="document.getElementById('imageInput').click()" style="flex: 1;">
-              选择图片
-            </button>
+            选择图片
+          </button>
             <button type="button" class="btn-secondary" id="pasteImageBtn" onclick="pasteImage()" style="flex: 1;">
               粘贴图片
             </button>
@@ -600,9 +600,9 @@
           <!-- 图片预览和移除 -->
           <div class="image-preview-container" id="imagePreviewContainer" style="display: none;">
             <div class="image-preview" id="imagePreview" style="max-width: 100%; max-height: 200px; border: 1px solid #CCCCCC; border-radius: 4px; overflow: hidden; position: relative;">
-              <img id="previewImg" style="width: 100%; height: auto; display: block;">
+            <img id="previewImg" style="width: 100%; height: auto; display: block;">
               <button type="button" class="remove-image-btn" id="removeImageBtn" onclick="removeImage()" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;">×</button>
-            </div>
+          </div>
             <div class="image-info" id="imageInfo" style="font-size: 11px; color: #666; margin-top: 4px;"></div>
           </div>
         </div>
@@ -1147,19 +1147,19 @@
 
     // 显示图片预览
     function showImagePreview(imageData, fileName, fileSize) {
-      const previewImg = document.getElementById('previewImg');
+        const previewImg = document.getElementById('previewImg');
       const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-      const imageInfo = document.getElementById('imageInfo');
-      
+        const imageInfo = document.getElementById('imageInfo');
+        
       previewImg.src = imageData;
       imagePreviewContainer.style.display = 'block';
       imageInfo.textContent = `文件: ${fileName} (${(fileSize / 1024).toFixed(1)}KB)`;
-      
-      // 存储图片数据
+        
+        // 存储图片数据
       window.uploadedImageData = imageData;
-      
-      // 更新同步按钮状态
-      updateSyncButtonState();
+        
+        // 更新同步按钮状态
+        updateSyncButtonState();
     }
 
     // 粘贴图片功能
@@ -1363,6 +1363,7 @@
         frameIds: selectedFrames.map(function(frame) {
           return frame.id;
         }),
+        apiKey: apiKey, // 传递API Key用于AI智能分组
         options: {
           batchSize: 100,
           dryRun: false
@@ -1455,10 +1456,10 @@
           {
             lang: 'chi_sim+eng',
             options: {
-              logger: m => {
-                if (m.status === 'recognizing text') {
-                  console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
-                }
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+            }
               },
               tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz一丁七万丈三上下不与丑专世丘丙业丛东丝丢两严丧个中丰串临丸丹为主丽举乃久么义之乌乍乎乏乐乒乓乔乖乘乙九也习乡书买乱乳了予争事二于亏云互五井亚些亡交亥亦产亨亩享京亭亮亲亻',
               tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT

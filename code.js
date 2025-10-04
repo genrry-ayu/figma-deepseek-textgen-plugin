@@ -110,7 +110,7 @@ figma.ui.onmessage = async (msg) => {
         figma.ui.postMessage({ type: 'translate-cancelled' });
         break;
       case 'ocr-sync':
-        await handleOCRSync(msg.imageData, msg.frameIds, msg.options);
+        await handleOCRSync(msg.imageData, msg.frameIds, msg.apiKey, msg.options);
         break;
       case 'ocr-result':
         // 处理OCR识别结果
@@ -2853,7 +2853,7 @@ async function trySetTextViaInstanceProperty(textNode, value) {
 }
 
 // OCR同步处理函数
-async function handleOCRSync(imageData, frameIds, options = {}) {
+async function handleOCRSync(imageData, frameIds, apiKey, options = {}) {
   try {
     console.log('开始OCR同步，参数:', { frameIds, options });
     
@@ -2886,11 +2886,11 @@ async function handleOCRSync(imageData, frameIds, options = {}) {
       throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
     }
     
-    updateProgress(30, '智能分割文本...');
+    updateProgress(30, 'AI智能分析文本结构...');
     
-    // 智能分割OCR文本
-    const textSegments = intelligentSplitOCR(ocrText, frames);
-    console.log('分割结果:', textSegments);
+    // 使用AI智能分组OCR文本
+    const textSegments = await intelligentGroupTextWithAI(ocrText, frames, apiKey);
+    console.log('AI分组结果:', textSegments);
     
     // 调试信息：显示每个Frame的分配情况
     for (let i = 0; i < frames.length; i++) {
@@ -2998,7 +2998,150 @@ async function performOCR(imageData) {
   }
 }
 
-// 智能分割OCR文本
+// AI智能分组文本
+async function intelligentGroupTextWithAI(ocrText, frames, apiKey) {
+  try {
+    console.log('开始AI智能分组，原始文本:', ocrText);
+    
+    if (!apiKey) {
+      console.warn('没有API Key，使用传统分割方法');
+      return intelligentSplitOCR(ocrText, frames);
+    }
+    
+    // 获取每个Frame的文本节点数量
+    const frameTextCounts = frames.map(frame => {
+      try {
+        const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+        return textNodes.filter(n => n.visible !== false).length;
+      } catch (error) {
+        console.warn(`获取Frame ${frame.name} 文本节点失败:`, error);
+        return 0;
+      }
+    });
+    
+    const totalTextNodes = frameTextCounts.reduce((sum, count) => sum + count, 0);
+    console.log('总文本节点数量:', totalTextNodes);
+    
+    if (totalTextNodes <= 1) {
+      return frames.map((frame, index) => {
+        const count = frameTextCounts[index];
+        return count > 0 ? [ocrText] : [];
+      });
+    }
+    
+    // 构建AI提示词
+    const prompt = `你是一个专业的文本分析专家。请分析以下OCR识别出的文本，并按照UI界面布局的逻辑进行智能分组。
+
+OCR识别文本：${ocrText}
+
+目标分组数量：${totalTextNodes} 个文本节点
+
+请按照以下规则进行分组：
+1. 理解文本的语义和逻辑关系
+2. 考虑UI界面的常见布局模式（如：标题+内容、标签+值、列表项等）
+3. 保持相关内容的完整性
+4. 按照从上到下、从左到右的阅读顺序
+5. 确保每个分组都有意义且完整
+
+请返回JSON格式的结果，格式如下：
+{
+  "groups": [
+    "第一个文本节点的内容",
+    "第二个文本节点的内容",
+    ...
+  ],
+  "explanation": "分组逻辑的简要说明"
+}
+
+要求：
+- 返回的groups数组长度必须等于${totalTextNodes}
+- 每个元素对应一个文本节点的内容
+- 保持原始文本的完整性，不要丢失任何内容
+- 按照逻辑顺序排列`;
+
+    console.log('发送AI分析请求...');
+    
+    // 调用DeepSeek API
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个专业的UI文本分析专家，擅长理解界面布局和文本逻辑关系。请严格按照JSON格式返回结果。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI分析请求失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiResult = data.choices[0].message.content.trim();
+    
+    console.log('AI分析结果:', aiResult);
+    
+    // 解析AI返回的JSON结果
+    let parsedResult;
+    try {
+      // 尝试提取JSON部分
+      const jsonMatch = aiResult.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedResult = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('无法找到JSON格式的结果');
+      }
+    } catch (parseError) {
+      console.warn('AI返回结果解析失败，使用传统分割方法:', parseError);
+      return intelligentSplitOCR(ocrText, frames);
+    }
+    
+    if (!parsedResult.groups || !Array.isArray(parsedResult.groups)) {
+      console.warn('AI返回结果格式不正确，使用传统分割方法');
+      return intelligentSplitOCR(ocrText, frames);
+    }
+    
+    console.log('AI分组成功:', parsedResult.groups, '说明:', parsedResult.explanation);
+    
+    // 按Frame分配文本
+    const frameSegments = [];
+    let groupIndex = 0;
+    
+    for (let i = 0; i < frames.length; i++) {
+      const textCount = frameTextCounts[i];
+      const frameTexts = [];
+      
+      for (let j = 0; j < textCount && groupIndex < parsedResult.groups.length; j++) {
+        frameTexts.push(parsedResult.groups[groupIndex]);
+        groupIndex++;
+      }
+      
+      frameSegments.push(frameTexts);
+    }
+    
+    return frameSegments;
+    
+  } catch (error) {
+    console.error('AI智能分组失败:', error);
+    console.log('回退到传统分割方法');
+    return intelligentSplitOCR(ocrText, frames);
+  }
+}
+
+// 智能分割OCR文本（传统方法作为备选）
 function intelligentSplitOCR(ocrText, frames) {
   try {
     console.log('开始智能分割OCR文本:', ocrText);
