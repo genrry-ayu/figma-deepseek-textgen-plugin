@@ -2892,6 +2892,13 @@ async function handleOCRSync(imageData, frameIds, options = {}) {
     const textSegments = intelligentSplitOCR(ocrText, frames);
     console.log('分割结果:', textSegments);
     
+    // 调试信息：显示每个Frame的分配情况
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+      const texts = textSegments[i] || [];
+      console.log(`Frame ${frame.name}: 分配了 ${texts.length} 个文本片段:`, texts);
+    }
+    
     updateProgress(50, '按顺序同步到Frame...');
     
     // 按顺序同步到每个Frame
@@ -2995,6 +3002,7 @@ async function performOCR(imageData) {
 function intelligentSplitOCR(ocrText, frames) {
   try {
     console.log('开始智能分割OCR文本:', ocrText);
+    console.log('原始文本长度:', ocrText.length);
     
     // 获取每个Frame的文本节点数量
     const frameTextCounts = frames.map(frame => {
@@ -3008,28 +3016,54 @@ function intelligentSplitOCR(ocrText, frames) {
     });
     
     console.log('Frame文本节点数量:', frameTextCounts);
+    const totalTextNodes = frameTextCounts.reduce((sum, count) => sum + count, 0);
+    console.log('总文本节点数量:', totalTextNodes);
+    
+    // 如果只有一个文本节点，直接返回整个文本
+    if (totalTextNodes <= 1) {
+      console.log('只有一个文本节点，返回完整文本');
+      return frames.map((frame, index) => {
+        const count = frameTextCounts[index];
+        return count > 0 ? [ocrText] : [];
+      });
+    }
+    
+    let segments = [];
     
     // 策略1：按标点符号分割
-    let segments = splitByPunctuation(ocrText);
-    console.log('标点符号分割结果:', segments);
+    segments = splitByPunctuation(ocrText);
+    console.log('标点符号分割结果:', segments, '数量:', segments.length);
     
     // 策略2：按换行符分割（精确）
-    if (segments.length === 0) {
+    if (segments.length <= 1) {
       segments = splitByLinesPrecise(ocrText);
-      console.log('换行符分割结果（精确）:', segments);
+      console.log('换行符分割结果（精确）:', segments, '数量:', segments.length);
     }
     
-    // 策略2.1：按换行符分割（备用）
-    if (segments.length === 0) {
-      segments = splitByLines(ocrText);
-      console.log('换行符分割结果（备用）:', segments);
+    // 策略3：按空格分割
+    if (segments.length <= 1) {
+      segments = splitBySpaces(ocrText);
+      console.log('空格分割结果:', segments, '数量:', segments.length);
     }
     
-    // 策略3：按平均长度分割
-    if (segments.length === 0) {
-      const totalTextNodes = frameTextCounts.reduce((sum, count) => sum + count, 0);
+    // 策略4：按字符数量智能分割
+    if (segments.length <= 1) {
+      segments = splitByCharacterCount(ocrText, totalTextNodes);
+      console.log('字符数量分割结果:', segments, '数量:', segments.length);
+    }
+    
+    // 策略5：按平均长度分割（最后的备选方案）
+    if (segments.length <= 1) {
       segments = splitByAverageLength(ocrText, totalTextNodes);
-      console.log('平均长度分割结果:', segments);
+      console.log('平均长度分割结果:', segments, '数量:', segments.length);
+    }
+    
+    // 确保至少有与文本节点数量相同的片段
+    if (segments.length < totalTextNodes) {
+      console.log('片段数量不足，补充空片段');
+      while (segments.length < totalTextNodes) {
+        segments.push('');
+      }
     }
     
     // 按Frame分配文本
@@ -3060,7 +3094,8 @@ function intelligentSplitOCR(ocrText, frames) {
 
 // 按标点符号分割
 function splitByPunctuation(text) {
-  const segments = text.split(/[。！？\n\r]+/).filter(s => s.trim());
+  // 更全面的标点符号分割
+  const segments = text.split(/[。！？，、；：\n\r]+/).filter(s => s.trim());
   return segments.map(s => s.trim());
 }
 
@@ -3084,6 +3119,51 @@ function splitByLinesPrecise(text) {
   }
   
   return segments;
+}
+
+// 按空格分割
+function splitBySpaces(text) {
+  const segments = text.split(/\s+/).filter(s => s.trim());
+  return segments.map(s => s.trim());
+}
+
+// 按字符数量智能分割
+function splitByCharacterCount(text, targetCount) {
+  if (targetCount <= 0 || text.length === 0) return [];
+  
+  const avgLength = Math.floor(text.length / targetCount);
+  const segments = [];
+  let currentIndex = 0;
+  
+  // 尝试在合适的位置分割，避免切断单词
+  for (let i = 0; i < targetCount; i++) {
+    let segmentLength = avgLength;
+    
+    // 最后一个段落获取剩余所有文本
+    if (i === targetCount - 1) {
+      segmentLength = text.length - currentIndex;
+    } else {
+      // 尝试在空格或标点符号处分割
+      let searchStart = Math.max(currentIndex, currentIndex + segmentLength - 10);
+      let searchEnd = Math.min(text.length, currentIndex + segmentLength + 10);
+      
+      let bestSplitPoint = currentIndex + segmentLength;
+      for (let j = searchStart; j < searchEnd; j++) {
+        const char = text[j];
+        if (char === ' ' || char === '，' || char === '。' || char === '！' || char === '？') {
+          bestSplitPoint = j + 1;
+          break;
+        }
+      }
+      segmentLength = bestSplitPoint - currentIndex;
+    }
+    
+    const segment = text.substring(currentIndex, currentIndex + segmentLength);
+    segments.push(segment.trim());
+    currentIndex += segmentLength;
+  }
+  
+  return segments.filter(s => s.length > 0);
 }
 
 // 按平均长度分割
