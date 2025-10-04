@@ -362,7 +362,7 @@
       display: none;
     }
     
-    /* 选项卡样式（对齐设计稿） */
+    /* 选项卡样式（精确对齐设计稿） */
     .tab-nav {
       position: absolute;
       left: 0;
@@ -375,6 +375,7 @@
       align-items: center;
       padding: 0 20px;
       gap: 18px;
+      background: #FFFFFF;
     }
     
     .tab-button {
@@ -389,13 +390,19 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       border-bottom: 3px solid transparent;
+      min-width: 0;
+      flex-shrink: 0;
     }
     
     .tab-button:hover:not(.active) {
       background: rgba(0, 0, 0, 0.02);
+      border-radius: 2px;
     }
     
-    .tab-button.active { background: transparent; border-bottom-color: #222222; }
+    .tab-button.active { 
+      background: transparent; 
+      border-bottom-color: #222222; 
+    }
     
     .tab-button-text {
       font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -404,6 +411,8 @@
       line-height: 17px;
       color: #222222;
       white-space: nowrap;
+      display: block;
+      text-align: center;
     }
     
     .tab-button:not(.active) .tab-button-text {
@@ -411,17 +420,38 @@
       font-weight: 400;
     }
     
-    /* 内容区域 */
+    /* 内容区域（精确对齐设计稿） */
     .tab-content {
       display: none;
       position: absolute;
       left: 20px;
-      top: 70px;
+      top: 66px;
       width: 280px;
+      height: 434px;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     
     .tab-content.active {
       display: block;
+    }
+    
+    /* 滚动条样式 */
+    .tab-content::-webkit-scrollbar {
+      width: 4px;
+    }
+    
+    .tab-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .tab-content::-webkit-scrollbar-thumb {
+      background: #CCCCCC;
+      border-radius: 2px;
+    }
+    
+    .tab-content::-webkit-scrollbar-thumb:hover {
+      background: #999999;
     }
   </style>
 </head>
@@ -448,16 +478,115 @@
   <!-- 生成文案选项卡内容 -->
   <div class="tab-content active" id="generateContent">
     <style>
-      /* 生成文本面板样式，贴合设计稿排版 */
-      #generateContent .gen-panel { display: flex; flex-direction: column; gap: 24px; }
-    #generateContent .gen-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
-      #generateContent .gen-primary { height: 25px; background: #222222; color: #FFFFFF; border: none; border-radius: 4px; }
-      #generateContent .gen-secondary { height: 25px; background: #F2F2F2; color: #222222; border: 0.5px solid #CCCCCC; border-radius: 4px; }
-      #generateContent .gen-progress { display: flex; flex-direction: column; gap: 4px; }
-      #generateContent .gen-progress-head { display: flex; flex-direction: row; gap: 4px; align-items: center; }
-      #generateContent .gen-progress-label, #generateContent .gen-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI'; color: #222222; }
-      #generateContent .gen-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
-      #generateContent .gen-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #222222; border-radius: 4px; transition: width .2s ease; }
+      /* 生成文本面板样式，精确对齐设计稿 */
+      #generateContent .gen-panel { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 24px; 
+        padding: 0;
+        margin: 0;
+        width: 280px;
+        height: 434px;
+        box-sizing: border-box;
+      }
+      
+      #generateContent .gen-actions { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 8px; 
+        padding-top: 8px; 
+        margin: 0;
+      }
+      
+      #generateContent .gen-primary { 
+        height: 29px; 
+        background: #222222; 
+        color: #FFFFFF; 
+        border: none; 
+        border-radius: 4px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        padding: 6px 20px;
+        box-sizing: border-box;
+        width: 100%;
+      }
+      
+      #generateContent .gen-primary:hover {
+        background: #333333;
+      }
+      
+      #generateContent .gen-primary:disabled {
+        background: #DDDDDD;
+        color: #999999;
+        cursor: not-allowed;
+      }
+      
+      #generateContent .gen-secondary { 
+        height: 29px; 
+        background: #F2F2F2; 
+        color: #222222; 
+        border: 0.5px solid #CCCCCC; 
+        border-radius: 4px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        cursor: pointer;
+        transition: background 0.2s ease;
+        padding: 6px 20px;
+        box-sizing: border-box;
+        width: 100%;
+      }
+      
+      #generateContent .gen-secondary:hover {
+        background: #EEEEEE;
+      }
+      
+      #generateContent .gen-secondary:disabled {
+        background: #F5F5F5;
+        color: #AAAAAA;
+        cursor: not-allowed;
+      }
+      
+      #generateContent .gen-progress { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 4px; 
+        margin-top: 10px;
+      }
+      
+      #generateContent .gen-progress-head { 
+        display: flex; 
+        flex-direction: row; 
+        gap: 4px; 
+        align-items: center; 
+        justify-content: flex-start;
+      }
+      
+      #generateContent .gen-progress-label, 
+      #generateContent .gen-progress-percent { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #222222; 
+        white-space: nowrap;
+      }
+      
+      #generateContent .gen-progress-bar { 
+        position: relative; 
+        width: 100%; 
+        height: 3px; 
+        background: #CCCCCC; 
+        border-radius: 4px; 
+        overflow: hidden; 
+      }
+      
+      #generateContent .gen-progress-fill { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        height: 100%; 
+        width: 0%; 
+        background: #222222; 
+        border-radius: 4px; 
+        transition: width .2s ease; 
+      }
     </style>
     <div class="gen-panel">
     <!-- API Key 配置区域 -->
@@ -519,17 +648,26 @@
   <!-- 多帧同步选项卡内容（按规范优化） -->
   <div class="tab-content" id="syncContent">
     <style>
-      /* 同步面板局部样式，基于Figma设计优化 */
+      /* 同步面板局部样式，精确对齐Figma设计 */
       #syncContent .sync-panel { 
         display: flex; 
         flex-direction: column; 
         gap: 24px; 
         width: 280px; 
+        height: 434px;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
+      
       #syncContent .sync-field { 
         display: flex; 
         flex-direction: column; 
         gap: 4px; 
+        margin: 0;
+        padding: 0;
       }
       
       /* 选择状态区样式（贴合Figma设计） */
@@ -600,6 +738,7 @@
         box-sizing: border-box;
       }
       
+      
       /* 下拉箭头样式 */
       #syncContent .sync-select {
         -webkit-appearance: none; 
@@ -614,13 +753,13 @@
       #syncContent .sync-select::placeholder,
       #syncContent .sync-input::placeholder { color: #CCCCCC; }
       
-      /* 图片上传区域样式 - 严格按照Figma设计 */
+      /* 图片上传区域样式 - 精确还原Figma设计 */
       #syncContent .image-drop-zone {
-        border: 0.5px solid #CCCCCC;
+        border: 1px dashed #CCCCCC;
         border-radius: 4px;
         cursor: pointer;
         transition: all 0.2s ease;
-        background: #FAFAFA;
+        background: #FFFFFF;
         width: 64px;
         height: 64px;
         display: flex;
@@ -629,14 +768,29 @@
         justify-content: center;
         margin-top: 8px;
         box-sizing: border-box;
+        position: relative;
       }
+      
       #syncContent .image-drop-zone:hover {
-        border-color: #1A1A1A;
+        border-color: #999999;
+        background: #FAFAFA;
+      }
+      
+      #syncContent .image-drop-zone:active {
+        border-color: #666666;
         background: #F5F5F5;
       }
+      
       #syncContent .image-drop-icon {
-        font-size: 16px;
-        opacity: 0.6;
+        font-size: 24px;
+        font-weight: 300;
+        color: #999999;
+        line-height: 1;
+        user-select: none;
+      }
+      
+      #syncContent .image-drop-zone:hover .image-drop-icon {
+        color: #666666;
       }
       
       /* 图片预览样式 - 严格按照Figma设计 */
@@ -788,24 +942,27 @@
           </label>
         </div>
         
-        <!-- Frame选择器 -->
+        <!-- Frame选择器 - 下拉选择器形式 -->
         <select class="sync-select" id="sourceFrame" onchange="updateSourceFrameInfo()">
           <option value="">请选择内容来源的 Frame</option>
         </select>
         
         <!-- 图片上传器 - 严格按照Figma设计 -->
         <div class="image-upload" id="imageUpload" style="display: none;">
-          <!-- 图片选择区域 -->
+          <!-- 图片选择区域 - 64x64px -->
           <div class="image-select-area" id="imageSelectArea">
-            <div class="image-drop-zone" onclick="document.getElementById('imageInput').click()" 
+            <div class="image-drop-zone" 
+                 onclick="document.getElementById('imageInput').click()" 
                  ondrop="handleDrop(event)" 
                  ondragover="handleDragOver(event)" 
-                 ondragleave="handleDragLeave(event)">
+                 ondragleave="handleDragLeave(event)"
+                 onpaste="handlePaste(event)"
+                 tabindex="0">
               <div class="image-drop-icon">+</div>
-          </div>
+            </div>
           </div>
           
-          <!-- 图片预览区域 -->
+          <!-- 图片预览区域 - 64x64px -->
           <div class="image-preview-container" id="imagePreviewContainer" style="display: none;">
             <div class="image-preview" id="imagePreview">
               <img id="previewImg" class="preview-image">
@@ -845,10 +1002,46 @@
   <!-- 翻译选项卡内容 -->
   <div class="tab-content" id="translateContent">
     <style>
-      #translateContent .tr-panel { display: flex; flex-direction: column; gap: 24px; }
-      #translateContent .tr-field { display: flex; flex-direction: column; gap: 4px; }
-      #translateContent .tr-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #translateContent .tr-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
+      /* 翻译面板样式，精确对齐设计稿 */
+      #translateContent .tr-panel { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 24px; 
+        width: 280px;
+        height: 434px;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      
+      #translateContent .tr-field { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 4px; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      #translateContent .tr-label { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #111111; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      #translateContent .tr-hint { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #AAAAAA; 
+        width: 276px; 
+        height: 17px; 
+        margin: 0;
+        padding: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       #translateContent .tr-select {
         height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px;
         padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -861,15 +1054,73 @@
         padding-right: 28px; /* 预留空间，避免文字压到箭头 */
       }
       #translateContent .tr-actions { padding-top: 8px; }
-      #translateContent .tr-button { width: 100%; height: 25px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
-      #translateContent .tr-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
+      #translateContent .tr-button { 
+        width: 100%; 
+        height: 29px; 
+        background: #222222; 
+        color: #FFFFFF; 
+        border: none; 
+        border-radius: 4px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        cursor: pointer; 
+        transition: background 0.2s ease;
+        padding: 6px 20px;
+        box-sizing: border-box;
+      }
+      
+      #translateContent .tr-button:hover {
+        background: #333333;
+      }
+      
+      #translateContent .tr-button:disabled { 
+        background: #DDDDDD; 
+        color: #999999; 
+        cursor: not-allowed; 
+      }
       #translateContent .tr-cancel { margin-top: 8px; }
-      #translateContent .tr-progress { display: none; gap: 8px; margin-top: 10px; }
-      #translateContent .tr-progress-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-      #translateContent .tr-progress-label, #translateContent .tr-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #translateContent .tr-progress-percent { color: #666666; }
-      #translateContent .tr-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
-      #translateContent .tr-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; border-radius: 4px; transition: width .2s ease; }
+      #translateContent .tr-progress { 
+        display: none; 
+        flex-direction: column;
+        gap: 4px; 
+        margin-top: 10px; 
+      }
+      
+      #translateContent .tr-progress-head { 
+        display: flex; 
+        flex-direction: row; 
+        gap: 4px; 
+        align-items: center; 
+        justify-content: flex-start;
+      }
+      
+      #translateContent .tr-progress-label, 
+      #translateContent .tr-progress-percent { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #222222; 
+        white-space: nowrap;
+        margin: 0;
+        padding: 0;
+      }
+      
+      #translateContent .tr-progress-bar { 
+        position: relative; 
+        width: 100%; 
+        height: 3px; 
+        background: #CCCCCC; 
+        border-radius: 4px; 
+        overflow: hidden; 
+      }
+      
+      #translateContent .tr-progress-fill { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        height: 100%; 
+        width: 0%; 
+        background: #222222; 
+        border-radius: 4px; 
+        transition: width .2s ease; 
+      }
     </style>
 
     <div class="tr-panel">
@@ -917,24 +1168,130 @@
   <!-- 字体替换选项卡内容 -->
   <div class="tab-content" id="fontContent">
     <style>
-      #fontContent .font-panel { display: flex; flex-direction: column; gap: 24px; }
-      #fontContent .font-field { display: flex; flex-direction: column; gap: 4px; }
-      #fontContent .font-field.font-replace { gap: 8px; }
-      #fontContent .font-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #fontContent .font-select, #fontContent .font-input { width: 100%; height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 0 12px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; background: #FFFFFF; }
-      #fontContent .font-select:disabled, #fontContent .font-input:disabled { color: #AAAAAA; }
+      /* 字体替换面板样式，精确对齐设计稿 */
+      #fontContent .font-panel { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 24px; 
+        width: 280px;
+        height: 434px;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      
+      #fontContent .font-field { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 4px; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      #fontContent .font-field.font-replace { 
+        gap: 8px; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      #fontContent .font-label { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #111111; 
+        margin: 0;
+        padding: 0;
+      }
+      #fontContent .font-select, #fontContent .font-input { 
+        width: 100%; 
+        height: 32px; 
+        border: 0.5px solid #CCCCCC; 
+        border-radius: 4px; 
+        padding: 5px 8px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #111111; 
+        background: #FFFFFF; 
+        box-sizing: border-box;
+        outline: none;
+        transition: border-color 0.2s ease;
+      }
+      
+      #fontContent .font-select:focus, #fontContent .font-input:focus {
+        border-color: #007AFF;
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
+      }
+      
+      #fontContent .font-select:hover:not(:focus), #fontContent .font-input:hover:not(:focus) {
+        border-color: #999999;
+      }
+      
+      #fontContent .font-select:disabled, #fontContent .font-input:disabled { 
+        color: #AAAAAA; 
+        background: #F5F5F5;
+        cursor: not-allowed;
+      }
       #fontContent .font-combobox { position: relative; width: 100%; }
       #fontContent .font-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: #FFFFFF; border: 0.5px solid #CCCCCC; border-radius: 4px; height: 264px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
       #fontContent .font-option { padding: 8px 12px; cursor: pointer; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; display: flex; align-items: center; }
       #fontContent .font-option:hover { background: #F5F5F5; }
       #fontContent .font-option.empty { color:#AAAAAA; cursor: default; }
       #fontContent .badge-rec { margin-left: 8px; padding: 0 6px; border-radius: 10px; background: #F5F5F5; color: #1A1A1A; font: 400 12px/18px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      #fontContent .font-button { width: 100%; height: 25px; background: #1A1A1A; border-radius: 4px; border: none; color: #FFFFFF; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
-      #fontContent .font-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
-      #fontContent .font-progress { display: none; gap: 8px; }
-      #fontContent .font-progress-text { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #fontContent .font-progress-bar { position: relative; width: 100%; height: 6px; background: #E5E5E5; border-radius: 3px; overflow: hidden; }
-      #fontContent .font-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; transition: width .2s ease; }
+      #fontContent .font-button { 
+        width: 100%; 
+        height: 29px; 
+        background: #222222; 
+        border-radius: 4px; 
+        border: none; 
+        color: #FFFFFF; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        cursor: pointer; 
+        transition: background 0.2s ease;
+        padding: 6px 20px;
+        box-sizing: border-box;
+      }
+      
+      #fontContent .font-button:hover {
+        background: #333333;
+      }
+      
+      #fontContent .font-button:disabled { 
+        background: #DDDDDD; 
+        color: #999999; 
+        cursor: not-allowed; 
+      }
+      #fontContent .font-progress { 
+        display: none; 
+        flex-direction: column;
+        gap: 4px; 
+        margin-top: 10px;
+      }
+      
+      #fontContent .font-progress-text { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #222222; 
+        margin: 0;
+        padding: 0;
+      }
+      
+      #fontContent .font-progress-bar { 
+        position: relative; 
+        width: 100%; 
+        height: 3px; 
+        background: #CCCCCC; 
+        border-radius: 4px; 
+        overflow: hidden; 
+      }
+      
+      #fontContent .font-progress-fill { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        height: 100%; 
+        width: 0%; 
+        background: #222222; 
+        border-radius: 4px; 
+        transition: width .2s ease; 
+      }
       #fontContent .font-quick { display:flex; gap:8px; }
       #fontContent .font-quick .btn-secondary { height: 25px; flex:1; }
       #fontContent .font-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
@@ -989,6 +1346,18 @@
       
       // 监听选择变化
       parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+      
+      // 添加全局粘贴事件监听器
+      document.addEventListener('paste', function(event) {
+        // 检查是否在图片模式且图片选择区域可见
+        const sourceTypeElement = document.querySelector('input[name="sourceType"]:checked');
+        const imageUpload = document.getElementById('imageUpload');
+        
+        if (sourceTypeElement && sourceTypeElement.value === 'image' && 
+            imageUpload && imageUpload.style.display !== 'none') {
+          handlePaste(event);
+        }
+      });
       
       // 测试按钮点击事件
       const syncBtn = document.getElementById('syncBtn');
@@ -1167,14 +1536,15 @@
           (async () => {
             try {
               const imageData = msg.imageData;
-              const ocrText = await performOCRRecognition(imageData);
+              const ocrResult = await performOCRRecognition(imageData);
               
               // 发送OCR结果回插件
               parent.postMessage({
                 pluginMessage: {
                   type: 'ocr-result',
                   success: true,
-                  text: ocrText
+                  text: typeof ocrResult === 'string' ? ocrResult : ocrResult.text,
+                  lines: (ocrResult && ocrResult.lines) ? ocrResult.lines : undefined
                 }
               }, '*');
               
@@ -1235,23 +1605,37 @@
       const info = document.getElementById('frame-selection-info');
       const syncBtn = document.getElementById('syncBtn');
       const sourceFrameSelect = document.getElementById('sourceFrame');
+      const sourceTypeElement = document.querySelector('input[name="sourceType"]:checked');
       
-      if (selectedFrames.length < 2) {
-        info.textContent = '请选择至少 2 个对象';
+      // 根据同步源类型确定最小选择数量
+      const isImageMode = sourceTypeElement && sourceTypeElement.value === 'image';
+      const minRequired = isImageMode ? 1 : 2;
+      
+      if (selectedFrames.length < minRequired) {
+        info.textContent = `请选择至少 ${minRequired} 个对象`;
         info.className = 'sync-hint';
         syncBtn.disabled = true;
-        sourceFrameSelect.disabled = true;
+        if (sourceFrameSelect) {
+          sourceFrameSelect.disabled = true;
+        }
       } else {
-        info.textContent = `已选择 ${selectedFrames.length} 个对象，请选择源Frame`;
+        if (isImageMode) {
+          info.textContent = `已选择 ${selectedFrames.length} 个对象，请上传图片`;
+        } else {
+          info.textContent = `已选择 ${selectedFrames.length} 个对象，请选择源Frame`;
+        }
         info.className = 'sync-hint';
-        sourceFrameSelect.disabled = false;
         
-        // 更新源Frame下拉菜单
-        updateSourceFrameOptions();
-        // 若尚未选择源Frame，自动选中第一个，减少一次点击
-        if (!sourceFrameSelect.value && selectedFrames.length > 0) {
-          sourceFrameSelect.value = selectedFrames[0].id;
-          updateSourceFrameInfo();
+        if (sourceFrameSelect) {
+          sourceFrameSelect.disabled = false;
+          
+          // 更新源Frame下拉菜单
+          updateSourceFrameOptions();
+          // 若尚未选择源Frame，自动选中第一个，减少一次点击
+          if (!sourceFrameSelect.value && selectedFrames.length > 0) {
+            sourceFrameSelect.value = selectedFrames[0].id;
+            updateSourceFrameInfo();
+          }
         }
         
         // 检查是否可以开始同步
@@ -1311,16 +1695,19 @@
     // 切换同步源类型
     function toggleSourceType() {
       const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
-      const frameSelect = document.getElementById('sourceFrame');
+      const sourceFrame = document.getElementById('sourceFrame');
       const imageUpload = document.getElementById('imageUpload');
       
       if (sourceType === 'frame') {
-        frameSelect.style.display = 'block';
+        sourceFrame.style.display = 'block';
         imageUpload.style.display = 'none';
       } else if (sourceType === 'image') {
-        frameSelect.style.display = 'none';
+        sourceFrame.style.display = 'none';
         imageUpload.style.display = 'block';
       }
+      
+      // 更新选择状态信息
+      updateFrameSelectionInfo();
       
       // 更新同步按钮状态
       updateSyncButtonState();
@@ -1374,7 +1761,26 @@
         updateSyncButtonState();
     }
 
-    // 粘贴图片功能
+    // 处理图片选择区域的粘贴事件
+    function handlePaste(event) {
+      event.preventDefault();
+      
+      const items = event.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            processImageFile(file, '粘贴的图片');
+            return;
+          }
+        }
+      }
+      
+      showStatus('剪贴板中没有找到图片', 'error');
+    }
+    
+    // 粘贴图片功能（保留原有功能）
     function pasteImage() {
       // 创建一个临时的可编辑元素来接收粘贴事件
       const tempDiv = document.createElement('div');
@@ -1391,7 +1797,7 @@
       showStatus('请在画布中粘贴图片 (Ctrl+V 或 Cmd+V)', 'info');
       
       // 监听粘贴事件
-      const handlePaste = (e) => {
+      const handlePasteGlobal = (e) => {
         e.preventDefault();
         
         const items = e.clipboardData.items;
@@ -1402,7 +1808,7 @@
             if (file) {
               processImageFile(file, '粘贴的图片');
               document.body.removeChild(tempDiv);
-              document.removeEventListener('paste', handlePaste);
+              document.removeEventListener('paste', handlePasteGlobal);
               return;
             }
           }
@@ -1412,13 +1818,13 @@
       };
       
       // 添加粘贴事件监听器
-      document.addEventListener('paste', handlePaste);
+      document.addEventListener('paste', handlePasteGlobal);
       
       // 设置超时，如果用户没有粘贴则移除监听器
       setTimeout(() => {
         if (document.body.contains(tempDiv)) {
           document.body.removeChild(tempDiv);
-          document.removeEventListener('paste', handlePaste);
+          document.removeEventListener('paste', handlePasteGlobal);
         }
       }, 10000); // 10秒超时
     }
@@ -1541,7 +1947,7 @@
     // 从Frame同步
     function syncFramesFromFrame() {
       if (selectedFrames.length < 2) {
-        showStatus('请先选择至少2个Frame', 'error');
+        showStatus('请先选择至少2个对象', 'error');
         return;
       }
       
@@ -1589,7 +1995,7 @@
     // 从图片同步
     function syncFramesFromImage() {
       if (selectedFrames.length < 1) {
-        showStatus('请先选择至少1个Frame', 'error');
+        showStatus('请先选择至少1个对象', 'error');
         return;
       }
 
@@ -1625,6 +2031,55 @@
       }, '*');
     }
 
+    // 简单旋转 DataURL（返回新的 DataURL）
+    function rotateDataURL(srcDataURL, angleDeg) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = function () {
+          const rad = angleDeg * Math.PI / 180;
+          const sin = Math.abs(Math.sin(rad));
+          const cos = Math.abs(Math.cos(rad));
+          const w = img.width;
+          const h = img.height;
+          const cw = Math.round(w * cos + h * sin);
+          const ch = Math.round(w * sin + h * cos);
+          const canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = false;
+          ctx.translate(cw / 2, ch / 2);
+          ctx.rotate(rad);
+          ctx.drawImage(img, -w / 2, -h / 2);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = srcDataURL;
+      });
+    }
+
+    // Otsu 全局阈值
+    function otsuThreshold(grayData) {
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < grayData.length; i++) hist[grayData[i]]++;
+      const total = grayData.length;
+      let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+      let sumB = 0;
+      let wB = 0;
+      let max = 0;
+      let threshold = 127;
+      for (let t = 0; t < 256; t++) {
+        wB += hist[t];
+        if (wB === 0) continue;
+        const wF = total - wB; if (wF === 0) break;
+        sumB += t * hist[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const between = wB * wF * (mB - mF) * (mB - mF);
+        if (between > max) { max = between; threshold = t; }
+      }
+      return threshold;
+    }
+
     // 图片预处理函数 - 增强版
     function preprocessImage(imageData) {
       return new Promise((resolve) => {
@@ -1632,94 +2087,104 @@
         img.onload = function() {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
+
           // 设置画布尺寸，适当放大以提高识别准确性
-          const scale = Math.max(3, Math.min(6, 2000 / Math.max(img.width, img.height)));
+          const targetMin = 1800; // 提高最小边分辨率
+          const scale = Math.max(2.5, Math.min(6, targetMin / Math.max(img.width, img.height)));
           canvas.width = img.width * scale;
           canvas.height = img.height * scale;
-          
+
           // 禁用图像平滑，保持文字边缘清晰
           ctx.imageSmoothingEnabled = false;
           
           // 绘制放大的原图
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // 获取图像数据
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imageData.data;
-          
-          // 多种预处理策略
-          const processedImages = [];
-          
-          // 策略1：高对比度二值化（优化版）
-          const highContrastData = new Uint8ClampedArray(data);
-          for (let i = 0; i < data.length; i += 4) {
+          // 获取图像数据并计算灰度缓存
+          const im = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = im.data;
+          const gray = new Uint8ClampedArray(im.width * im.height);
+          for (let i = 0, j = 0; i < data.length; i += 4, j++) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
-            
-            // 转换为灰度
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            
-            // 高对比度处理
-            let enhanced = gray;
-            if (gray < 128) {
-              enhanced = Math.max(0, gray * 0.2); // 大幅加深暗色
-            } else {
-              enhanced = Math.min(255, gray * 1.8); // 大幅提亮亮色
-            }
-            
-            // 自适应二值化
-            const binary = enhanced > 80 ? 255 : 0;
-            
-            highContrastData[i] = binary;     // R
-            highContrastData[i + 1] = binary; // G
-            highContrastData[i + 2] = binary; // B
-            highContrastData[i + 3] = 255;    // A
+            gray[j] = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
           }
-          
+
+          // 多种预处理策略
+          const processedImages = [];
+
+          // 策略1：高对比度二值化（优化版）
+          const highContrastRGBA = new Uint8ClampedArray(data.length);
+          for (let j = 0, k = 0; j < gray.length; j++, k += 4) {
+            const g = gray[j];
+            let enhanced = g < 128 ? Math.max(0, g * 0.2) : Math.min(255, g * 1.8);
+            const binary = enhanced > 80 ? 255 : 0;
+            highContrastRGBA[k] = binary;
+            highContrastRGBA[k + 1] = binary;
+            highContrastRGBA[k + 2] = binary;
+            highContrastRGBA[k + 3] = 255;
+          }
+
           const highContrastCanvas = document.createElement('canvas');
           highContrastCanvas.width = canvas.width;
           highContrastCanvas.height = canvas.height;
           const highContrastCtx = highContrastCanvas.getContext('2d');
-          highContrastCtx.putImageData(new ImageData(highContrastData, canvas.width, canvas.height), 0, 0);
+          highContrastCtx.putImageData(new ImageData(highContrastRGBA, canvas.width, canvas.height), 0, 0);
           processedImages.push(highContrastCanvas.toDataURL('image/png'));
-          
+
           // 策略2：中对比度二值化
-          const midContrastData = new Uint8ClampedArray(data);
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            
-            // 中对比度处理
-            let enhanced = gray;
-            if (gray < 140) {
-              enhanced = Math.max(0, gray * 0.6);
-            } else {
-              enhanced = Math.min(255, gray * 1.2);
-            }
-            
+          const midContrastRGBA = new Uint8ClampedArray(data.length);
+          for (let j = 0, k = 0; j < gray.length; j++, k += 4) {
+            const g = gray[j];
+            let enhanced = g < 140 ? Math.max(0, g * 0.6) : Math.min(255, g * 1.2);
             const binary = enhanced > 130 ? 255 : 0;
-            
-            midContrastData[i] = binary;
-            midContrastData[i + 1] = binary;
-            midContrastData[i + 2] = binary;
-            midContrastData[i + 3] = 255;
+            midContrastRGBA[k] = binary;
+            midContrastRGBA[k + 1] = binary;
+            midContrastRGBA[k + 2] = binary;
+            midContrastRGBA[k + 3] = 255;
           }
-          
+
           const midContrastCanvas = document.createElement('canvas');
           midContrastCanvas.width = canvas.width;
           midContrastCanvas.height = canvas.height;
           const midContrastCtx = midContrastCanvas.getContext('2d');
-          midContrastCtx.putImageData(new ImageData(midContrastData, canvas.width, canvas.height), 0, 0);
+          midContrastCtx.putImageData(new ImageData(midContrastRGBA, canvas.width, canvas.height), 0, 0);
           processedImages.push(midContrastCanvas.toDataURL('image/png'));
-          
+
+          // 策略3：Otsu 全局阈值二值化
+          const otsu = otsuThreshold(gray);
+          const otsuRGBA = new Uint8ClampedArray(data.length);
+          for (let j = 0, k = 0; j < gray.length; j++, k += 4) {
+            const v = gray[j] > otsu ? 255 : 0;
+            otsuRGBA[k] = v; otsuRGBA[k + 1] = v; otsuRGBA[k + 2] = v; otsuRGBA[k + 3] = 255;
+          }
+          const otsuCanvas = document.createElement('canvas');
+          otsuCanvas.width = canvas.width;
+          otsuCanvas.height = canvas.height;
+          const otsuCtx = otsuCanvas.getContext('2d');
+          otsuCtx.putImageData(new ImageData(otsuRGBA, canvas.width, canvas.height), 0, 0);
+          processedImages.push(otsuCanvas.toDataURL('image/png'));
+
+          // 策略4：Gamma 矫正（提亮）
+          const gamma = 0.75; // <1 提亮
+          const gammaLUT = new Uint8ClampedArray(256);
+          for (let i = 0; i < 256; i++) gammaLUT[i] = Math.min(255, Math.round(255 * Math.pow(i / 255, gamma)));
+          const gammaRGBA = new Uint8ClampedArray(data.length);
+          for (let j = 0, k = 0; j < gray.length; j++, k += 4) {
+            const v = gammaLUT[gray[j]];
+            gammaRGBA[k] = v; gammaRGBA[k + 1] = v; gammaRGBA[k + 2] = v; gammaRGBA[k + 3] = 255;
+          }
+          const gammaCanvas = document.createElement('canvas');
+          gammaCanvas.width = canvas.width;
+          gammaCanvas.height = canvas.height;
+          const gammaCtx = gammaCanvas.getContext('2d');
+          gammaCtx.putImageData(new ImageData(gammaRGBA, canvas.width, canvas.height), 0, 0);
+          processedImages.push(gammaCanvas.toDataURL('image/png'));
+
           // 策略3：保留原始放大图（彩色）
           processedImages.push(canvas.toDataURL('image/png'));
-          
+
           resolve(processedImages);
         };
         img.src = imageData;
@@ -1730,31 +2195,27 @@
     async function performOCRRecognition(imageData) {
       try {
         console.log('开始AI OCR识别...');
-        
+
         // 第1步：使用Tesseract进行基础OCR识别
         console.log('步骤1：基础OCR识别...');
-        const rawOCRResult = await performBasicOCR(imageData);
-        console.log('基础OCR结果:', rawOCRResult);
+        const raw = await performBasicOCR(imageData);
+        const rawOCRResult = typeof raw === 'string' ? { text: raw, lines: [] } : raw;
+        console.log('基础OCR结果:', rawOCRResult.text);
         
         // 第2步：使用DeepSeek AI进行智能纠错
         console.log('步骤2：AI智能纠错...');
         const apiKey = document.getElementById('apiKey').value;
         
         if (apiKey) {
-          const correctedText = await correctOCRWithAI(rawOCRResult, apiKey);
+          const correctedText = await correctOCRWithAI(rawOCRResult.text, apiKey);
           console.log('AI纠错后结果:', correctedText);
           
-          // 清理识别结果
-          const cleanedText = correctedText
-            .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, '') // 移除特殊字符，保留中文、英文、数字和空格
-            .replace(/\s+/g, ' ') // 合并多个空格
-            .trim();
-          
+          const cleanedText = sanitizeOCRText(correctedText);
           if (cleanedText.length === 0) {
             throw new Error('识别结果包含无效字符，请尝试使用更清晰的图片');
           }
           
-          return cleanedText;
+          return { text: cleanedText, lines: rawOCRResult.lines || [] };
         } else {
           console.warn('未配置API Key，使用基础OCR结果');
           return rawOCRResult;
@@ -1783,80 +2244,116 @@
         console.log('预处理图片中...');
         const processedImages = await preprocessImage(imageData);
         console.log(`生成了 ${processedImages.length} 个预处理图片`);
-        
-        // 简化的OCR配置 - 快速识别
-        const ocrConfig = {
-          lang: 'eng',
+
+        // 基础 OCR 配置
+        const baseOcrConfig = {
+          lang: 'chi_sim+eng',
           options: {
-          logger: m => {
-            if (m.status === 'recognizing text') {
-              console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
-            }
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+              }
             },
-            tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
-            tessedit_pageseg_mode: Tesseract.PSM.AUTO,
             tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
-            preserve_interword_spaces: '1'
+            preserve_interword_spaces: '1',
+            user_defined_dpi: '300'
           }
         };
-        
+
         let bestResult = null;
         let bestConfidence = 0;
-        
-        // 尝试不同的预处理图片
+        let bestLines = [];
+        let bestMeta = { psm: null, angle: 0, variant: -1 };
+
+        // 尝试不同的预处理图片 + 旋转 + PSM 组合
+        const anglesToTry = [0, 90]; // 如需更稳可扩展到 [0,90,180,270]
         for (let imgIndex = 0; imgIndex < processedImages.length; imgIndex++) {
-          const processedImage = processedImages[imgIndex];
-          console.log(`尝试预处理图片 ${imgIndex + 1}/${processedImages.length}`);
-          
-          try {
-            const { data: { text, confidence } } = await Tesseract.recognize(
-              processedImage, 
-              ocrConfig.lang, 
-              ocrConfig.options
-            );
-            
-            console.log(`图片${imgIndex + 1} 原始结果:`, text, '置信度:', confidence);
-            
-            if (confidence > bestConfidence && text && text.trim().length > 0) {
-              bestResult = text;
-              bestConfidence = confidence;
-              console.log(`新的最佳结果: "${text}", 置信度: ${confidence}`);
+          for (const angle of anglesToTry) {
+            let candidate = processedImages[imgIndex];
+            if (angle !== 0) {
+              try { candidate = await rotateDataURL(candidate, angle); } catch (e) { console.warn('旋转失败，跳过', angle, e); }
             }
-          } catch (configError) {
-            console.warn(`图片${imgIndex + 1} 识别失败:`, configError);
-            continue;
+            try {
+              const basePSMs = [
+                Tesseract.PSM && Tesseract.PSM.AUTO,
+                Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK,
+                Tesseract.PSM && Tesseract.PSM.SINGLE_COLUMN,
+                Tesseract.PSM && Tesseract.PSM.SPARSE_TEXT,
+                Tesseract.PSM && Tesseract.PSM.AUTO_OSD,
+                Tesseract.PSM && Tesseract.PSM.SPARSE_TEXT_OSD
+              ].filter(Boolean);
+              for (const psm of basePSMs) {
+                const { data } = await Tesseract.recognize(
+                  candidate,
+                  baseOcrConfig.lang,
+                  { ...baseOcrConfig.options, tessedit_pageseg_mode: psm }
+                );
+                const text = data.text;
+                const confidence = Number(data.confidence) || 0;
+                console.log(`图${imgIndex + 1} 角度${angle}° PSM=${psm} 置信度:`, confidence);
+                if (confidence > bestConfidence && text && text.trim().length > 0) {
+                  bestResult = text;
+                  bestConfidence = confidence;
+                  bestLines = extractLinesFromTesseractData(data);
+                  bestMeta = { psm, angle, variant: imgIndex };
+                }
+              }
+            } catch (configError) {
+              console.warn(`图片${imgIndex + 1} 角度${angle}° 识别失败:`, configError);
+              continue;
+            }
           }
         }
-        
+
         // 如果没有找到合适的结果，尝试原始图片
         if (!bestResult || bestConfidence < 30) {
           console.log('尝试原始图片识别...');
           try {
-            const { data: { text, confidence } } = await Tesseract.recognize(
-              imageData, 
-              'eng', 
-              {
-                logger: m => {
-                  if (m.status === 'recognizing text') {
-                    console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+            // 原图也做多 PSM + 旋转 尝试
+            const basePSMs = [
+              Tesseract.PSM && Tesseract.PSM.AUTO,
+              Tesseract.PSM && Tesseract.PSM.SINGLE_BLOCK,
+              Tesseract.PSM && Tesseract.PSM.SINGLE_COLUMN,
+              Tesseract.PSM && Tesseract.PSM.SPARSE_TEXT,
+              Tesseract.PSM && Tesseract.PSM.AUTO_OSD,
+              Tesseract.PSM && Tesseract.PSM.SPARSE_TEXT_OSD
+            ].filter(Boolean);
+            const fallbackAngles = [0, 90];
+            for (const ang of fallbackAngles) {
+              const rotated = ang === 0 ? imageData : await rotateDataURL(imageData, ang);
+              for (const psm of basePSMs) {
+                const { data } = await Tesseract.recognize(
+                  rotated,
+                  'chi_sim+eng',
+                  {
+                    logger: m => {
+                      if (m.status === 'recognizing text') {
+                        console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+                      }
+                    },
+                    tessedit_pageseg_mode: psm,
+                    tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+                    preserve_interword_spaces: '1',
+                    user_defined_dpi: '300'
                   }
-                },
-                tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-                tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+                );
+                const text = data.text;
+                const confidence = Number(data.confidence) || 0;
+                if (confidence > bestConfidence && text && text.trim().length > 0) {
+                  bestResult = text;
+                  bestConfidence = confidence;
+                  bestLines = extractLinesFromTesseractData(data);
+                  bestMeta = { psm, angle: ang, variant: -1 };
+                }
               }
-            );
-            
-            if (confidence > bestConfidence && text && text.trim().length > 0) {
-              bestResult = text;
-              bestConfidence = confidence;
             }
           } catch (originalError) {
             console.warn('原始图片识别失败:', originalError);
           }
         }
-        
-        console.log('基础OCR最终结果:', bestResult, '置信度:', bestConfidence);
-        
+
+        console.log('基础OCR最终结果:', bestResult, '置信度:', bestConfidence, '元信息:', bestMeta);
+
         // 检查识别结果的质量
         if (!bestResult || bestResult.trim().length === 0) {
           throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
@@ -1866,11 +2363,53 @@
         const correctedText = postProcessOCRResult(bestResult);
         console.log('基础后处理结果:', correctedText);
         
-        return correctedText;
+        return { text: correctedText, lines: bestLines };
         
       } catch (error) {
         console.error('基础OCR识别失败:', error);
         throw error;
+      }
+    }
+
+    // 从 Tesseract data 中提取行级文本及其 bbox
+    function extractLinesFromTesseractData(data) {
+      try {
+        const lines = [];
+        if (data && Array.isArray(data.lines)) {
+          for (const ln of data.lines) {
+            const t = sanitizeOCRText(ln.text || '');
+            if (!t) continue;
+            const box = ln.bbox || ln.bbox0 || {};
+            const w = (box.x1 ?? 0) - (box.x0 ?? 0);
+            const h = (box.y1 ?? 0) - (box.y0 ?? 0);
+            lines.push({ text: t, x: box.x0 ?? 0, y: box.y0 ?? 0, w, h });
+          }
+        } else if (data && Array.isArray(data.words)) {
+          // 退化：按单词聚合为行
+          let currentY = null; let cur = [];
+          const tol = 12;
+          const flush = () => {
+            if (!cur.length) return;
+            const text = sanitizeOCRText(cur.map(w => w.text).join(' '));
+            const xs = cur.map(w => w.bbox.x0); const ys = cur.map(w => w.bbox.y0);
+            const xe = cur.map(w => w.bbox.x1); const ye = cur.map(w => w.bbox.y1);
+            const box = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xe), y1: Math.max(...ye) };
+            lines.push({ text, x: box.x0, y: box.y0, w: box.x1 - box.x0, h: box.y1 - box.y0 });
+            cur = []; currentY = null;
+          };
+          for (const w of data.words) {
+            const y = w.bbox.y0;
+            if (currentY === null || Math.abs(y - currentY) <= tol) { cur.push(w); currentY = currentY === null ? y : (currentY * (cur.length - 1) + y) / cur.length; }
+            else { flush(); cur.push(w); currentY = y; }
+          }
+          flush();
+        }
+        // 按 y,x 排序
+        lines.sort((a,b)=> (a.y===b.y ? a.x-b.x : a.y-b.y));
+        return lines;
+      } catch (e) {
+        console.warn('extractLinesFromTesseractData error:', e);
+        return [];
       }
     }
 
@@ -1935,6 +2474,26 @@
     }
 
     // OCR后处理函数，修复常见错误
+    function sanitizeOCRText(text) {
+      if (!text) return '';
+
+      let cleaned = text;
+
+      // 标准化换行与空格
+      cleaned = cleaned.replace(/\r\n?/g, '\n');
+      cleaned = cleaned.replace(/[\t\f\v]+/g, ' ');
+
+      // 保留更全面的标点符号与中英文字符
+      // 额外保留：()[]{}“”"'‘’·…—_+%@&$#<>=^
+      cleaned = cleaned.replace(/[^\u4e00-\u9fa5a-zA-Z0-9.,，。！？!?:：；;、\/\\\-\n\r \(\)\[\]\{\}“”"'‘’·…—_+%@&$#<>=^]+/g, '');
+
+      // 收缩连续空格但保留换行
+      cleaned = cleaned.replace(/ {2,}/g, ' ');
+      cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+      return cleaned.trim();
+    }
+
     function postProcessOCRResult(text) {
       if (!text) return text;
       
@@ -1942,66 +2501,47 @@
       
       console.log('原始OCR结果:', corrected);
       
-      // 1. 去除重复的文本模式
-      const removeDuplicates = (str) => {
-        // 查找重复的文本模式并只保留一个
-        const words = str.split(/\s+/);
-        const seen = new Set();
-        const unique = [];
-        
-        for (const word of words) {
-          const cleanWord = word.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-          if (cleanWord && !seen.has(cleanWord)) {
-            seen.add(cleanWord);
-            unique.push(word);
+      // 1) 连字符与空格清理
+      corrected = corrected.replace(/-\s+/g, '-');
+      corrected = corrected.replace(/\s+-/g, '-');
+
+      // 2) 上下文字符修复（更保守，仅对短的纯字母/数字词生效）
+      corrected = contextualCharFixConservative(corrected);
+
+      return sanitizeOCRText(corrected);
+    }
+
+    // 保守的上下文修复：仅对长度<=8的纯字母/数字词执行替换，避免破坏中文或长文本
+    function contextualCharFixConservative(text) {
+      const mapDigitToAlpha = { '0': 'O', '1': 'I', '5': 'S', '8': 'B' };
+      const mapAlphaToDigit = { 'O': '0', 'I': '1', 'S': '5', 'B': '8' };
+      const tokenize = (s) => s.split(/(\b)/); // 保留边界，便于只改词
+      const tokens = tokenize(text);
+      const fixed = tokens.map(tok => {
+        if (!/^[A-Za-z0-9]+$/.test(tok)) return tok; // 非纯字母数字不处理
+        if (tok.length > 8) return tok; // 太长的不处理
+        const chars = tok.split('');
+        for (let i = 0; i < chars.length; i++) {
+          const ch = chars[i];
+          const prev = i > 0 ? chars[i - 1] : '';
+          const next = i + 1 < chars.length ? chars[i + 1] : '';
+          const isAlpha = /[A-Za-z]/.test.bind(/[A-Za-z]/);
+          const isDigit = /[0-9]/.test.bind(/[0-9]/);
+          if (mapDigitToAlpha[ch]) {
+            const alphaBias = (isAlpha(prev)?1:0) + (isAlpha(next)?1:0) - ((isDigit(prev)?1:0) + (isDigit(next)?1:0));
+            if (alphaBias > 0) chars[i] = mapDigitToAlpha[ch];
+          } else if (mapAlphaToDigit[ch]) {
+            const digitBias = ((isDigit(prev)?1:0) + (isDigit(next)?1:0)) - ((isAlpha(prev)?1:0) + (isAlpha(next)?1:0));
+            if (digitBias > 0) chars[i] = mapAlphaToDigit[ch];
           }
         }
-        
-        return unique.join(' ');
-      };
-      
-      // 2. 修复常见的字符识别错误
-      const corrections = [
-        // 修复time相关的错误
-        { pattern: /ttime\b/g, replacement: 'time' }, // ttime -> time
-        { pattern: /ime\b/g, replacement: 'time' }, // ime -> time
-        { pattern: /lime\b/g, replacement: 'time' }, // lime -> time
-        { pattern: /tme\b/g, replacement: 'time' }, // tme -> time
-        { pattern: /tirne\b/g, replacement: 'time' }, // tirne -> time
-        { pattern: /tlme\b/g, replacement: 'time' }, // tlme -> time
-        
-        // 修复其他常见错误
-        { pattern: /O/g, replacement: '0' }, // 大写O -> 数字0
-        { pattern: /I/g, replacement: '1' }, // 大写I -> 数字1
-        { pattern: /S/g, replacement: '5' }, // 大写S -> 数字5
-        { pattern: /B/g, replacement: '8' }, // 大写B -> 数字8
-        
-        // 修复连字符问题
-        { pattern: /-\s+/g, replacement: '-' }, // 连字符后的空格
-        { pattern: /\s+-/g, replacement: '-' }, // 连字符前的空格
-      ];
-      
-      // 应用所有修正
-      for (const correction of corrections) {
-        corrected = corrected.replace(correction.pattern, correction.replacement);
-      }
-      
-      console.log('修正后:', corrected);
-      
-      // 3. 去除重复内容
-      corrected = removeDuplicates(corrected);
-      console.log('去重后:', corrected);
-      
-      // 4. 清理无效字符，只保留英文、数字和空格
-      corrected = corrected
-        .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, '') // 移除特殊字符
-        .replace(/[氏水]/g, '') // 移除常见的中文误识别字符
-        .replace(/\s+/g, ' ') // 合并多个空格
-        .trim();
-      
-      console.log('最终清理后:', corrected);
-      
-      return corrected;
+        let out = chars.join('');
+        out = out.replace(/\b5F\b/g, 'SF');
+        out = out.replace(/\bP1ng\b/gi, 'Ping');
+        out = out.replace(/\bTe\d?t\b/gi, 'Text');
+        return out;
+      });
+      return fixed.join('');
     }
 
 
@@ -2106,19 +2646,14 @@
       const info = document.getElementById('selection-info');
       const generateBtn = document.getElementById('generateBtn');
       
-      if (selectedTextNodes.length === 0) {
-        info.textContent = '已经选中 0 个文本';
-        info.className = 'selection-status-text';
-        generateBtn.disabled = true;
+      const anyCount = (window.selectedAnyCount || 0);
+      if (anyCount > 0) {
+        info.textContent = '已选择对象，回填时将处理其内部可见文本';
       } else {
-        if (selectedTextNodes.length === 1) {
-          info.textContent = `已经选中 1 个文本`;
-        } else {
-          info.textContent = `已经选中 ${selectedTextNodes.length} 个文本`;
-        }
-        info.className = 'selection-status-text';
-        generateBtn.disabled = !apiKey;
+        info.textContent = '请选择任意对象或文本，回填时将处理其内部可见文本';
       }
+      info.className = 'selection-status-text';
+      generateBtn.disabled = !apiKey || anyCount === 0;
     }
 
     function updateTranslateSelectionInfo() {
@@ -2153,9 +2688,9 @@
         showStatus('请先配置 API Key', 'error');
         return;
       }
-      
-      if (selectedTextNodes.length === 0) {
-        showStatus('请先选择文本图层', 'error');
+      // 允许任意对象作为选择（文本将在回填时收集）
+      if (!window.selectedAnyCount || window.selectedAnyCount === 0) {
+        showStatus('请先选择对象或文本', 'error');
         return;
       }
       
@@ -2172,6 +2707,7 @@
           type: 'generate-text',
           prompt: prompt,
           apiKey: apiKey,
+          // 兼容旧逻辑：仍发送当前已选文本ID（可能为空）；主线程将基于当前选择兜底解析
           nodeIds: selectedTextNodes.map(node => node.id)
         } 
       }, '*');

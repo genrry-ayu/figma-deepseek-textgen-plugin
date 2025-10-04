@@ -120,7 +120,7 @@ figma.ui.onmessage = async (msg) => {
         }
         
         if (msg.success && ocrResolve) {
-          ocrResolve(msg.text);
+          ocrResolve({ text: msg.text, lines: msg.lines || [] });
           ocrResolve = null;
           ocrReject = null;
         } else if (ocrReject) {
@@ -230,15 +230,64 @@ figma.on('selectionchange', function() {
 async function generateText(prompt, apiKey, nodeIds) {
   try {
     // 验证输入
-    if (!prompt || !apiKey || !nodeIds || nodeIds.length === 0) {
+    if (!prompt || !apiKey) {
       throw new Error('缺少必要参数');
     }
 
-    // 获取要更新的文本节点
-    const textNodesAll = await Promise.all(
-      (nodeIds || []).map(function(id){ return figma.getNodeByIdAsync(id); })
-    );
-    const textNodes = textNodesAll.filter(function(node){ return node && node.type === 'TEXT'; });
+    // 在“回填”时再解析目标文本节点：
+    // - 若 UI 传入 nodeIds，则以其为根；
+    // - 否则使用当前选择（允许任意类型的图层/容器）。
+    let roots = [];
+    if (Array.isArray(nodeIds) && nodeIds.length > 0) {
+      const nodes = await Promise.all(nodeIds.map(function(id){ return figma.getNodeByIdAsync(id); }));
+      for (let i = 0; i < nodes.length; i++) if (nodes[i]) roots.push(nodes[i]);
+    } else {
+      const sel = figma.currentPage.selection || [];
+      for (let i = 0; i < sel.length; i++) roots.push(sel[i]);
+    }
+
+    if (roots.length === 0) {
+      throw new Error('请先选择对象或文本');
+    }
+
+    // 从根节点集合中收集“可见”的文本节点（不在选择阶段做，提升性能）
+    const seen = new Set();
+    const targets = [];
+
+    const pushIfText = function(n) {
+      if (!n) return;
+      if (n.type === 'TEXT' && !seen.has(n.id) && isNodeVisibleDeep(n)) {
+        seen.add(n.id);
+        targets.push(n);
+      }
+    };
+
+    for (let i = 0; i < roots.length; i++) {
+      const root = roots[i];
+      try {
+        if (root.type === 'TEXT') {
+          pushIfText(root);
+          continue;
+        }
+        // 优先使用高效查找，其次回退到递归
+        if (typeof root.findAllWithCriteria === 'function') {
+          const nodes = root.findAllWithCriteria({ types: ['TEXT'] }) || [];
+          for (let j = 0; j < nodes.length; j++) pushIfText(nodes[j]);
+        } else {
+          const rec = getTextNodesInFrameRecursive(root);
+          for (let j = 0; j < rec.length; j++) pushIfText(rec[j]);
+        }
+      } catch (_) {
+        try {
+          const rec = getTextNodesInFrameRecursive(root);
+          for (let j = 0; j < rec.length; j++) pushIfText(rec[j]);
+        } catch (e2) {
+          // 忽略单个根解析失败
+        }
+      }
+    }
+
+    const textNodes = targets;
 
     if (textNodes.length === 0) {
       throw new Error('未找到有效的文本节点');
@@ -291,6 +340,8 @@ async function generateTextBatch(textNodes, prompt, apiKey) {
 function enhancePrompt(prompt, currentIndex, totalCount) {
   let enhancedPrompt = prompt;
   let referenceFormat = null;
+  const lower = (prompt || '').toLowerCase();
+  const wantsEnglish = /英文|english|in english|仅英文|只用英文|海外|国外|overseas|international/.test(lower);
   
   // 解析参考格式
   const referenceMatch = prompt.match(/参考[：:]\s*([^\s]+)/);
@@ -349,12 +400,16 @@ function enhancePrompt(prompt, currentIndex, totalCount) {
   }
   
   // 公司名称优化
-  else if (prompt.includes('公司名称') || prompt.includes('公司名') || prompt.includes('企业名称')) {
-    const industries = ['科技', '智能', '创新', '绿色', '智慧', '数字', '未来', '云端', '数据', '人工智能'];
-    const suffixes = ['有限公司', '股份有限公司', '科技有限公司', '服务有限公司', '科技股份有限公司'];
-    const randomIndustry = industries[Math.floor(Math.random() * industries.length)];
-    const randomSuffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-    enhancedPrompt = `生成一个独特且有创意的公司名称，包含"${randomIndustry}"相关词汇，以"${randomSuffix}"结尾。避免与常见公司名称重复，要有创新性和独特性。这是第${currentIndex}个公司名称。`;
+  else if (prompt.includes('公司名称') || prompt.includes('公司名') || prompt.includes('企业名称') || prompt.includes('公司名字')) {
+    if (wantsEnglish) {
+      enhancedPrompt = `Generate one unique English company name for overseas markets. English only (A-Z and spaces), no Chinese. Use 1-3 words in Title Case or PascalCase (e.g., OpenAI, Bright Labs). No quotes or punctuation. This is item #${currentIndex}.`;
+    } else {
+      const industries = ['科技', '智能', '创新', '绿色', '智慧', '数字', '未来', '云端', '数据', '人工智能'];
+      const suffixes = ['有限公司', '股份有限公司', '科技有限公司', '服务有限公司', '科技股份有限公司'];
+      const randomIndustry = industries[Math.floor(Math.random() * industries.length)];
+      const randomSuffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+      enhancedPrompt = `生成一个独特且有创意的公司名称，包含"${randomIndustry}"相关词汇，以"${randomSuffix}"结尾。避免与常见公司名称重复，要有创新性和独特性。这是第${currentIndex}个公司名称。`;
+    }
   }
   
   // 产品名称优化
@@ -386,6 +441,8 @@ function enhancePrompt(prompt, currentIndex, totalCount) {
 function enhancePromptForBatch(prompt, totalCount) {
   let enhancedPrompt = prompt;
   let referenceFormat = null;
+  const lower = (prompt || '').toLowerCase();
+  const wantsEnglish = /英文|english|in english|仅英文|只用英文|海外|国外|overseas|international/.test(lower);
   
   // 解析参考格式
   const referenceMatch = prompt.match(/参考[：:]\s*([^\s]+)/);
@@ -419,8 +476,18 @@ ${enhancedPrompt}。请确保每个输出都完全匹配对应的格式。`;
   }
   
   // 公司名称优化
-  else if (prompt.includes('公司名称') || prompt.includes('公司名') || prompt.includes('企业名称')) {
-    enhancedPrompt = `生成 ${totalCount} 个独特且有创意的公司名称，每个都要不同，避免重复。名称要符合中文命名习惯，包含行业特征词。`;
+  else if (prompt.includes('公司名称') || prompt.includes('公司名') || prompt.includes('企业名称') || prompt.includes('公司名字')) {
+    if (wantsEnglish) {
+      enhancedPrompt = `Generate ${totalCount} unique English company names for overseas markets.
+Requirements:
+- English only (A-Z letters and spaces), no Chinese, no Pinyin
+- 1-3 words; prefer Title Case or PascalCase (e.g., OpenAI, Bright Labs)
+- No quotes, numbering, punctuation, or trailing spaces
+- Avoid existing famous brands; ensure originality
+Output: one name per line.`;
+    } else {
+      enhancedPrompt = `生成 ${totalCount} 个独特且有创意的公司名称，每个都要不同，避免重复。名称要符合中文命名习惯，包含行业特征词。`;
+    }
   }
   
   // 产品名称优化
@@ -531,12 +598,12 @@ async function callLLMAPI(prompt, apiKey, totalCount = 1) {
       messages: [
         {
           role: "system",
-          content: `你是一个专业的界面文案生成助手，面向中文产品（电商、CRM、后台表格/看板等）。请严格遵循：
+          content: `你是一个专业的界面文案生成助手，主要面向中文产品（电商、CRM、后台表格/看板等）。但必须严格遵循用户的语言要求：当用户提示包含“英文/English/in English/仅英文/只用英文/海外/overseas/international”等字样时，输出必须为英文，不允许出现任何中文字符。其余情况默认中文。请严格遵循：
 
 【核心要求】
 1. 必须生成 ${totalCount} 行结果，彼此不同
 2. 只输出最终内容，不要任何前缀/编号/解释
-3. 文案需简洁，默认 2–12 个汉字或等宽字符
+3. 文案需简洁：中文默认 2–12 个汉字；若输出英文，建议 1–3 个词、Title Case 或 PascalCase，总长度 4–24 个字符
 4. 无需引号、括号或多余标点（除非用户明确要求）
 5. 输出格式：每行一个结果，用换行分隔
 
@@ -2458,66 +2525,111 @@ async function syncFrames(frameIds, sourceFrameId, threshold = 0.12, includeSour
 // 按顺序提取文本（从左到右，从上到下）
 function extractTextsInOrder(frame) {
   try {
-    // 获取所有文本节点
     const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
-    
-    // 过滤可见节点
+
+    // 过滤可见且可写（提升一致性）
     const visibleNodes = textNodes.filter(function(n){
       try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
     });
-    
-    // 按位置排序：先按Y坐标（从上到下），再按X坐标（从左到右）
-    // 完全解除容差限制，接受所有尺寸差异
-    visibleNodes.sort((a, b) => {
-      const aY = a.absoluteBoundingBox.y;
-      const bY = b.absoluteBoundingBox.y;
-      const aX = a.absoluteBoundingBox.x;
-      const bX = b.absoluteBoundingBox.x;
-      
-      // 直接按Y坐标排序，不考虑容差
-      if (aY !== bY) {
-        return aY - bY;
+
+    // 基于中心点的“分行+行内排序”，与翻译模块一致
+    const centers = new Map();
+    const ys = []; const hs = [];
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const n = visibleNodes[i];
+      const c = getAbsoluteCenter(n);
+      centers.set(n.id, c);
+      ys.push(c.y);
+      try { hs.push(Math.max(1, n.height || 0)); } catch (_) {}
+    }
+    ys.sort(function(a,b){ return a-b; });
+    hs.sort(function(a,b){ return a-b; });
+    const medianH = hs.length ? hs[Math.floor(hs.length/2)] : 16;
+    const tol = Math.max(4, Math.min(32, medianH * 0.6));
+
+    // 先按 y，后分行，行内按 x
+    visibleNodes.sort(function(a,b){ return centers.get(a.id).y - centers.get(b.id).y; });
+    const rows = [];
+    let current = [];
+    let currentY = null;
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const n = visibleNodes[i];
+      const cy = centers.get(n.id).y;
+      if (currentY === null || Math.abs(cy - currentY) <= tol) {
+        current.push(n);
+        if (currentY === null) currentY = cy; else currentY = (currentY * (current.length - 1) + cy) / current.length;
+      } else {
+        current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; });
+        rows.push(current);
+        current = [n];
+        currentY = cy;
       }
-      // Y坐标相同时，按X坐标排序
-      return aX - bX;
-    });
-    
-    // 提取文本内容
-    return visibleNodes.map(node => node.characters || '');
-    
+    }
+    if (current.length) { current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; }); rows.push(current); }
+
+    const ordered = [];
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      for (let j = 0; j < row.length; j++) ordered.push(row[j]);
+    }
+
+    return ordered.map(function(node){ return node.characters || ''; });
+
   } catch (error) {
     console.warn('按顺序提取文本失败，使用递归方式:', error);
-    // 回退到递归方式
     const textNodes = getTextNodesInFrameRecursive(frame);
-    return textNodes.map(node => node.characters || '');
+    return textNodes.map(function(node){ return node.characters || ''; });
   }
 }
 
 // 按顺序替换文本（从左到右，从上到下）
 async function replaceTextsInOrder(frame, texts) {
   try {
-    // 获取所有文本节点
     const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
-    
-    // 过滤可见节点
+
+    // 仅可见且可写节点（忽略锁定/不可写）
     const visibleNodes = textNodes.filter(function(n){
-      try { return isNodeVisibleDeep(n); } catch (_) { return n.visible !== false; }
+      try { return isNodeVisibleDeep(n) && canWriteToNode(n); } catch (_) { return n.visible !== false; }
     });
-    
-    // 按相同规则排序
-    visibleNodes.sort((a, b) => {
-      const aY = a.absoluteBoundingBox.y;
-      const bY = b.absoluteBoundingBox.y;
-      const aX = a.absoluteBoundingBox.x;
-      const bX = b.absoluteBoundingBox.x;
-      
-      // 直接按Y坐标排序，不考虑容差
-      if (aY !== bY) {
-        return aY - bY;
+
+    // 与翻译一致的阅读顺序：分行 + 行内排序
+    const centers = new Map();
+    const ys = []; const hs = [];
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const n = visibleNodes[i];
+      const c = getAbsoluteCenter(n);
+      centers.set(n.id, c);
+      ys.push(c.y);
+      try { hs.push(Math.max(1, n.height || 0)); } catch (_) {}
+    }
+    ys.sort(function(a,b){ return a-b; });
+    hs.sort(function(a,b){ return a-b; });
+    const medianH = hs.length ? hs[Math.floor(hs.length/2)] : 16;
+    const tol = Math.max(4, Math.min(32, medianH * 0.6));
+
+    visibleNodes.sort(function(a,b){ return centers.get(a.id).y - centers.get(b.id).y; });
+    const rows = [];
+    let current = [];
+    let currentY = null;
+    for (let i = 0; i < visibleNodes.length; i++) {
+      const n = visibleNodes[i];
+      const cy = centers.get(n.id).y;
+      if (currentY === null || Math.abs(cy - currentY) <= tol) {
+        current.push(n);
+        if (currentY === null) currentY = cy; else currentY = (currentY * (current.length - 1) + cy) / current.length;
+      } else {
+        current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; });
+        rows.push(current);
+        current = [n];
+        currentY = cy;
       }
-      // Y坐标相同时，按X坐标排序
-      return aX - bX;
-    });
+    }
+    if (current.length) { current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; }); rows.push(current); }
+    const orderedNodes = [];
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      for (let j = 0; j < row.length; j++) orderedNodes.push(row[j]);
+    }
     
     // 预加载目标Frame中所有文本节点的字体
     const fontSet = new Set();
@@ -2542,11 +2654,11 @@ async function replaceTextsInOrder(frame, texts) {
     
     // 按顺序替换文本
     let writeCount = 0;
-    const minCount = Math.min(texts.length, visibleNodes.length);
+    const minCount = Math.min(texts.length, orderedNodes.length);
     
     for (let i = 0; i < minCount; i++) {
-      const node = visibleNodes[i];
-      const newText = texts[i];
+      const node = orderedNodes[i];
+      const newText = unprotectPhrases(texts[i]);
       
       // 如果文本内容不同，则替换
       if (node.characters !== newText) {
@@ -2878,7 +2990,9 @@ async function handleOCRSync(imageData, frameIds, apiKey, options = {}) {
     updateProgress(15, 'OCR识别中...');
     
     // 执行OCR识别
-    const ocrText = await performOCR(imageData);
+    const ocrRes = await performOCR(imageData);
+    const ocrText = (ocrRes && ocrRes.text) ? ocrRes.text : String(ocrRes || '');
+    const ocrLines = (ocrRes && ocrRes.lines) ? ocrRes.lines : [];
     console.log('OCR识别结果:', ocrText);
     
     
@@ -2886,10 +3000,14 @@ async function handleOCRSync(imageData, frameIds, apiKey, options = {}) {
       throw new Error('未检测到任何文字内容，请检查图片是否包含清晰的文字');
     }
     
-    updateProgress(30, 'AI智能分析文本结构...');
-    
-    // 使用AI智能分组OCR文本
-    const textSegments = await intelligentGroupTextWithAI(ocrText, frames, apiKey);
+    let textSegments;
+    if (ocrLines && ocrLines.length) {
+      updateProgress(30, '按行匹配布局...');
+      textSegments = distributeOCRLinesByFrame(ocrLines, frames);
+    } else {
+      updateProgress(30, 'AI智能分析文本结构...');
+      textSegments = await intelligentGroupTextWithAI(ocrText, frames, apiKey);
+    }
     console.log('AI分组结果:', textSegments);
     
     // 调试信息：显示每个Frame的分配情况
@@ -2998,6 +3116,76 @@ async function performOCR(imageData) {
   }
 }
 
+// 使用 OCR 行级 bbox 结果进行分发：将行按 y,x 排序，
+// 再根据各 Frame 内部按阅读顺序排列的文本节点数量进行顺序填充。
+function distributeOCRLinesByFrame(ocrLines, frames) {
+  try {
+    const lines = (ocrLines || []).map(function(l){
+      const t = (l && l.text) ? ('' + l.text).trim() : '';
+      return { text: unprotectPhrases(t), x: Number(l.x)||0, y: Number(l.y)||0 };
+    });
+    lines.sort(function(a,b){ return (a.y===b.y ? a.x-b.x : a.y-b.y); });
+
+    const frameNodesOrdered = frames.map(function(frame){ return getOrderedWritableTextNodes(frame); });
+    const counts = frameNodesOrdered.map(function(list){ return list.length; });
+    const totalNeeded = counts.reduce(function(s,c){ return s+c; }, 0);
+
+    const texts = lines.map(function(l){ return l.text; });
+    while (texts.length < totalNeeded) texts.push('');
+    if (texts.length > totalNeeded) texts.splice(totalNeeded);
+
+    const out = [];
+    let idx = 0;
+    for (let i = 0; i < frames.length; i++) {
+      const need = counts[i];
+      out.push(texts.slice(idx, idx + need));
+      idx += need;
+    }
+    return out;
+  } catch (e) {
+    console.warn('distributeOCRLinesByFrame error:', e);
+    return frames.map(() => []);
+  }
+}
+
+// 与 replaceTextsInOrder 相同逻辑，产出按阅读顺序排列、可写的节点列表
+function getOrderedWritableTextNodes(frame) {
+  const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
+  const visibleNodes = textNodes.filter(function(n){
+    try { return isNodeVisibleDeep(n) && canWriteToNode(n); } catch (_) { return n.visible !== false; }
+  });
+  const centers = new Map();
+  const ys = []; const hs = [];
+  for (let i = 0; i < visibleNodes.length; i++) {
+    const n = visibleNodes[i];
+    const c = getAbsoluteCenter(n);
+    centers.set(n.id, c);
+    ys.push(c.y);
+    try { hs.push(Math.max(1, n.height || 0)); } catch (_) {}
+  }
+  ys.sort(function(a,b){ return a-b; });
+  hs.sort(function(a,b){ return a-b; });
+  const medianH = hs.length ? hs[Math.floor(hs.length/2)] : 16;
+  const tol = Math.max(4, Math.min(32, medianH * 0.6));
+
+  visibleNodes.sort(function(a,b){ return centers.get(a.id).y - centers.get(b.id).y; });
+  const rows = []; let current = []; let currentY = null;
+  for (let i = 0; i < visibleNodes.length; i++) {
+    const n = visibleNodes[i];
+    const cy = centers.get(n.id).y;
+    if (currentY === null || Math.abs(cy - currentY) <= tol) {
+      current.push(n); currentY = currentY === null ? cy : (currentY * (current.length - 1) + cy) / current.length;
+    } else {
+      current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; });
+      rows.push(current);
+      current = [n]; currentY = cy;
+    }
+  }
+  if (current.length) { current.sort(function(a,b){ return centers.get(a.id).x - centers.get(b.id).x; }); rows.push(current); }
+  const ordered = []; for (let r = 0; r < rows.length; r++) { const row = rows[r]; for (let j = 0; j < row.length; j++) ordered.push(row[j]); }
+  return ordered;
+}
+
 // AI智能分组文本
 async function intelligentGroupTextWithAI(ocrText, frames, apiKey) {
   try {
@@ -3009,15 +3197,25 @@ async function intelligentGroupTextWithAI(ocrText, frames, apiKey) {
     }
     
     // 获取每个Frame的文本节点数量
-    const frameTextCounts = frames.map(frame => {
+    const frameMeta = frames.map(function(frame) {
       try {
         const textNodes = frame.findAllWithCriteria({ types: ['TEXT'] });
-        return textNodes.filter(n => n.visible !== false).length;
+        const visible = textNodes.filter(function(n){ return n.visible !== false; });
+        return {
+          id: frame.id,
+          name: frame.name,
+          textCount: visible.length
+        };
       } catch (error) {
         console.warn(`获取Frame ${frame.name} 文本节点失败:`, error);
-        return 0;
+        return {
+          id: frame.id,
+          name: frame.name,
+          textCount: 0
+        };
       }
     });
+    const frameTextCounts = frameMeta.map(function(meta){ return meta.textCount; });
     
     const totalTextNodes = frameTextCounts.reduce((sum, count) => sum + count, 0);
     console.log('总文本节点数量:', totalTextNodes);
@@ -3030,34 +3228,39 @@ async function intelligentGroupTextWithAI(ocrText, frames, apiKey) {
     }
     
     // 构建AI提示词
-    const prompt = `你是一个专业的文本分析专家。请分析以下OCR识别出的文本，并按照UI界面布局的逻辑进行智能分组。
+    const frameSummary = frameMeta.map(function(meta, idx){
+      return `${idx + 1}. Frame名称：${meta.name} (ID: ${meta.id})，文本节点数：${meta.textCount}`;
+    }).join('\n');
 
-OCR识别文本：${ocrText}
+    const prompt = `你是一个专业的界面文本分析专家。请分析OCR结果并将文本拆分给下述多个Frame中的文本节点。
 
-目标分组数量：${totalTextNodes} 个文本节点
+OCR识别文本："""
+${ocrText}
+"""
 
-请按照以下规则进行分组：
-1. 理解文本的语义和逻辑关系
-2. 考虑UI界面的常见布局模式（如：标题+内容、标签+值、列表项等）
-3. 保持相关内容的完整性
-4. 按照从上到下、从左到右的阅读顺序
-5. 确保每个分组都有意义且完整
+Frame信息（保持原顺序）：
+${frameSummary}
 
-请返回JSON格式的结果，格式如下：
+请根据以下要求返回JSON结构：
 {
-  "groups": [
-    "第一个文本节点的内容",
-    "第二个文本节点的内容",
+  "frames": [
+    {
+      "index": 1,
+      "frameId": "第1个Frame的ID",
+      "frameName": "第1个Frame的名称",
+      "texts": ["对应的第1个文本节点内容", "第1个Frame的第2个文本节点内容"...]
+    },
     ...
   ],
-  "explanation": "分组逻辑的简要说明"
+  "notes": "可选，简要解释分组逻辑"
 }
 
-要求：
-- 返回的groups数组长度必须等于${totalTextNodes}
-- 每个元素对应一个文本节点的内容
-- 保持原始文本的完整性，不要丢失任何内容
-- 按照逻辑顺序排列`;
+规则：
+1. 每个Frame的texts数组长度必须与该Frame的文本节点数量完全相同。
+2. 严格保持Frame顺序（索引、ID）与上方列表一致。
+3. 文本内容需保持原始语义，允许轻度修正错别字，但不可凭空杜撰或遗漏。
+4. 当文本不足以完美匹配节点数量时，请合理拆分或合并相邻片段，但务必保持总输出文本数量为 ${totalTextNodes}。
+5. 返回值必须是可解析的JSON，禁止额外解释文字放在JSON外。`;
 
     console.log('发送AI分析请求...');
     
@@ -3109,30 +3312,35 @@ OCR识别文本：${ocrText}
       return intelligentSplitOCR(ocrText, frames);
     }
     
-    if (!parsedResult.groups || !Array.isArray(parsedResult.groups)) {
-      console.warn('AI返回结果格式不正确，使用传统分割方法');
+    if (!parsedResult.frames || !Array.isArray(parsedResult.frames)) {
+      console.warn('AI返回结果缺少frames字段，使用传统分割方法');
       return intelligentSplitOCR(ocrText, frames);
     }
-    
-    console.log('AI分组成功:', parsedResult.groups, '说明:', parsedResult.explanation);
-    
-    // 按Frame分配文本
-    const frameSegments = [];
-    let groupIndex = 0;
-    
-    for (let i = 0; i < frames.length; i++) {
-      const textCount = frameTextCounts[i];
-      const frameTexts = [];
-      
-      for (let j = 0; j < textCount && groupIndex < parsedResult.groups.length; j++) {
-        frameTexts.push(parsedResult.groups[groupIndex]);
-        groupIndex++;
-      }
-      
-      frameSegments.push(frameTexts);
+
+    console.log('AI分组成功:', parsedResult.frames, '说明:', parsedResult.notes);
+
+    const normalized = frames.map(function(frame, idx){
+      const expectedCount = frameTextCounts[idx];
+      const match = parsedResult.frames.find(function(item){
+        const itemIndex = typeof item.index === 'number' ? Math.floor(item.index) : null;
+        return (item.frameId && item.frameId === frame.id) || (itemIndex === idx + 1) || (item.frameName && item.frameName === frame.name);
+      });
+      const texts = Array.isArray(match && match.texts) ? match.texts.map(function(t){ return typeof t === 'string' ? t.trim() : (t == null ? '' : String(t)); }) : [];
+      return {
+        texts: texts,
+        expected: expectedCount
+      };
+    });
+
+    const allTextsCount = normalized.reduce(function(sum, item){ return sum + item.texts.length; }, 0);
+    const hasMismatch = normalized.some(function(item){ return item.texts.length !== item.expected; });
+
+    if (hasMismatch || allTextsCount !== totalTextNodes) {
+      console.warn('AI返回的文本数量与期望不匹配，使用传统分割方法', { normalized, totalTextNodes });
+      return intelligentSplitOCR(ocrText, frames);
     }
-    
-    return frameSegments;
+
+    return normalized.map(function(item){ return item.texts; });
     
   } catch (error) {
     console.error('AI智能分组失败:', error);
@@ -3146,6 +3354,9 @@ function intelligentSplitOCR(ocrText, frames) {
   try {
     console.log('开始智能分割OCR文本:', ocrText);
     console.log('原始文本长度:', ocrText.length);
+    
+    // 预归一化：保护多词英文短语，避免被空格错误拆分
+    const ocrProtected = protectPhrases(ocrText);
     
     // 获取每个Frame的文本节点数量
     const frameTextCounts = frames.map(frame => {
@@ -3172,43 +3383,40 @@ function intelligentSplitOCR(ocrText, frames) {
     }
     
     let segments = [];
-    
+
     // 策略1：按标点符号分割
-    segments = splitByPunctuation(ocrText);
+    segments = splitByPunctuation(ocrProtected);
     console.log('标点符号分割结果:', segments, '数量:', segments.length);
     
     // 策略2：按换行符分割（精确）
     if (segments.length <= 1) {
-      segments = splitByLinesPrecise(ocrText);
+      segments = splitByLinesPrecise(ocrProtected);
       console.log('换行符分割结果（精确）:', segments, '数量:', segments.length);
     }
     
     // 策略3：按空格分割
     if (segments.length <= 1) {
-      segments = splitBySpaces(ocrText);
+      segments = splitBySpaces(ocrProtected);
       console.log('空格分割结果:', segments, '数量:', segments.length);
     }
     
     // 策略4：按字符数量智能分割
     if (segments.length <= 1) {
-      segments = splitByCharacterCount(ocrText, totalTextNodes);
+      segments = splitByCharacterCount(ocrProtected, totalTextNodes);
       console.log('字符数量分割结果:', segments, '数量:', segments.length);
     }
     
     // 策略5：按平均长度分割（最后的备选方案）
     if (segments.length <= 1) {
-      segments = splitByAverageLength(ocrText, totalTextNodes);
+      segments = splitByAverageLength(ocrProtected, totalTextNodes);
       console.log('平均长度分割结果:', segments, '数量:', segments.length);
     }
-    
-    // 确保至少有与文本节点数量相同的片段
-    if (segments.length < totalTextNodes) {
-      console.log('片段数量不足，补充空片段');
-      while (segments.length < totalTextNodes) {
-        segments.push('');
-      }
-    }
-    
+
+    let balancedSegments = rebalanceSegments(segments, totalTextNodes);
+    // 反归一化：将占位符还原回正常空格
+    balancedSegments = balancedSegments.map(function(s){ return unprotectPhrases(s); });
+    console.log('平衡后的片段数量:', balancedSegments.length);
+
     // 按Frame分配文本
     const frameSegments = [];
     let segmentIndex = 0;
@@ -3217,8 +3425,8 @@ function intelligentSplitOCR(ocrText, frames) {
       const textCount = frameTextCounts[i];
       const frameTexts = [];
       
-      for (let j = 0; j < textCount && segmentIndex < segments.length; j++) {
-        frameTexts.push(segments[segmentIndex]);
+      for (let j = 0; j < textCount && segmentIndex < balancedSegments.length; j++) {
+        frameTexts.push(balancedSegments[segmentIndex]);
         segmentIndex++;
       }
       
@@ -3331,6 +3539,120 @@ function splitByAverageLength(text, targetCount) {
   }
   
   return segments.filter(s => s.length > 0);
+}
+
+function rebalanceSegments(rawSegments, targetCount) {
+  const cleaned = rawSegments
+    .map(function(s){ return typeof s === 'string' ? s.trim() : (s == null ? '' : String(s)); })
+    .filter(function(s){ return s.length > 0; });
+
+  let segments = cleaned.length ? cleaned.slice() : rawSegments.map(function(s){ return typeof s === 'string' ? s.trim() : (s == null ? '' : String(s)); });
+  if (!segments.length) segments = [''];
+
+  segments = segments.filter(function(s){ return s.length > 0; });
+  if (!segments.length) segments = [''];
+
+  // 合并多余的片段，优先合并最短的相邻片段
+  while (segments.length > targetCount && targetCount > 0) {
+    let mergeIndex = -1;
+    let minCombined = Infinity;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const combined = segments[i].length + segments[i + 1].length;
+      if (combined < minCombined) {
+        minCombined = combined;
+        mergeIndex = i;
+      }
+    }
+    if (mergeIndex === -1) break;
+    const merged = (segments[mergeIndex] + '\n' + segments[mergeIndex + 1]).trim();
+    segments.splice(mergeIndex, 2, merged);
+  }
+
+  // 拆分不足的片段，优先拆分最长项
+  while (segments.length < targetCount) {
+    let longestIndex = -1;
+    let longestLength = -1;
+    for (let i = 0; i < segments.length; i++) {
+      if (segments[i].length > longestLength) {
+        longestIndex = i;
+        longestLength = segments[i].length;
+      }
+    }
+    if (longestIndex === -1 || longestLength <= 1) {
+      segments.push('');
+      continue;
+    }
+
+    const segment = segments[longestIndex];
+    const split = splitSegmentHeuristically(segment);
+    if (!split) {
+      segments.push('');
+      continue;
+    }
+
+    segments.splice(longestIndex, 1, split[0], split[1]);
+  }
+
+  // 如果经过处理仍多于目标数量，再次裁剪
+  if (segments.length > targetCount) {
+    segments = segments.slice(0, targetCount);
+  }
+
+  // 补全空缺
+  while (segments.length < targetCount) {
+    segments.push('');
+  }
+
+  return segments;
+}
+
+function splitSegmentHeuristically(segment) {
+  if (!segment) return null;
+  const source = segment.trim();
+  if (source.length <= 1) return null;
+
+  const breakChars = ['\n', '。', '！', '？', '；', '，', ',', ';', '、', ':', '：', ' '];
+  const midpoint = Math.floor(source.length / 2);
+
+  const findSplitFrom = function(start, direction) {
+    for (let i = start; i >= 0 && i < source.length; i += direction) {
+      if (breakChars.indexOf(source[i]) !== -1) {
+        const cut = direction > 0 ? i + 1 : i;
+        if (cut > 0 && cut < source.length) {
+          return cut;
+        }
+      }
+    }
+    return -1;
+  };
+
+  let splitIndex = findSplitFrom(midpoint, 1);
+  if (splitIndex === -1) splitIndex = findSplitFrom(midpoint, -1);
+  if (splitIndex === -1 || splitIndex <= 0 || splitIndex >= source.length) {
+    splitIndex = midpoint;
+  }
+
+  const first = source.slice(0, splitIndex).trim();
+  const second = source.slice(splitIndex).trim();
+
+  if (!first || !second) return null;
+  return [first, second];
+}
+
+// 保护/还原常见多词英文短语，避免被空格拆碎
+function protectPhrases(s) {
+  if (!s) return s;
+  const rules = [
+    { re: /\bSF\s+Pro\s+Text\b/gi, rep: 'SF_Pro_Text' },
+    { re: /\bPingFang\s+SC\b/gi, rep: 'PingFang_SC' }
+  ];
+  let out = s;
+  for (const r of rules) out = out.replace(r.re, r.rep);
+  return out;
+}
+function unprotectPhrases(s) {
+  if (!s) return s;
+  return s.replace(/_/g, ' ');
 }
 
 // 初始化时检查选择和加载 API Key
