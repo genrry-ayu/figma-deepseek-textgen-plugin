@@ -519,10 +519,20 @@
   <!-- 多帧同步选项卡内容（按规范优化） -->
   <div class="tab-content" id="syncContent">
     <style>
-      /* 同步面板局部样式，避免影响生成文本页 */
-      #syncContent .sync-panel { display: flex; flex-direction: column; gap: 24px; }
-      #syncContent .sync-field { display: flex; flex-direction: column; gap: 4px; }
-      /* 选择状态区样式（贴合规范） */
+      /* 同步面板局部样式，基于Figma设计优化 */
+      #syncContent .sync-panel { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 24px; 
+        width: 280px; 
+      }
+      #syncContent .sync-field { 
+        display: flex; 
+        flex-direction: column; 
+        gap: 4px; 
+      }
+      
+      /* 选择状态区样式（贴合Figma设计） */
       #syncContent .selection-block {
         align-items: flex-start;
         padding: 0;
@@ -530,51 +540,251 @@
         width: 280px;
         min-height: 38px;
       }
-      #syncContent .sync-label { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #222222; }
-      #syncContent .sync-hint { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #AAAAAA; width: 276px; height: 17px; }
+      #syncContent .sync-label { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #222222; 
+      }
+      #syncContent .sync-hint { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #AAAAAA; 
+        width: 276px; 
+        height: 17px; 
+      }
+      
+      /* 源类型选择器样式 - 严格按照Figma设计 */
+      #syncContent .source-type-selector {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 8px;
+        align-items: center;
+      }
+      #syncContent .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      #syncContent .radio-option input[type="radio"] {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 0.5px solid #CCCCCC;
+        background: transparent;
+        cursor: pointer;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        box-sizing: border-box;
+      }
+      #syncContent .radio-option input[type="radio"]:checked {
+        background: transparent;
+        border: 2.5px solid #222222;
+        border-radius: 50%;
+      }
+      #syncContent .radio-label {
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: #222222;
+      }
+      
+      /* 输入框和选择器样式 */
       #syncContent .sync-select,
-      #syncContent .sync-input { height: 32px; border: 0.5px solid #CCCCCC; border-radius: 4px; padding: 5px 8px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; width: 100%; background: #FFFFFF; color: #1A1A1A; }
-      /* 下拉与翻译模块保持一致的箭头与内边距 */
+      #syncContent .sync-input { 
+        height: 32px; 
+        border: 0.5px solid #CCCCCC; 
+        border-radius: 4px; 
+        padding: 5px 8px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        width: 100%; 
+        background: #FFFFFF; 
+        color: #1A1A1A; 
+        box-sizing: border-box;
+      }
+      
+      /* 下拉箭头样式 */
       #syncContent .sync-select {
-        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        -webkit-appearance: none; 
+        -moz-appearance: none; 
+        appearance: none;
         background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4' fill='none'><path d='M1 0.5L4 3.5L7 0.5' stroke='%23AAAAAA' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-        background-repeat: no-repeat; background-size: 8px 4px;
+        background-repeat: no-repeat; 
+        background-size: 8px 4px;
         background-position: right 12px center;
         padding-right: 28px;
       }
       #syncContent .sync-select::placeholder,
       #syncContent .sync-input::placeholder { color: #CCCCCC; }
-      #syncContent .sync-actions { padding-top: 8px; }
-      #syncContent .sync-button { width: 100%; height: 25px; background: #1A1A1A; color: #FFFFFF; border: none; border-radius: 4px; font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; cursor: pointer; }
-      #syncContent .sync-button:disabled { background: #DDDDDD; color: #999999; cursor: not-allowed; }
-      #syncContent .sync-cancel { margin-top: 8px; }
-      #syncContent .sync-progress { display: none; gap: 8px; margin-top: 10px; }
-      #syncContent .sync-progress-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
-      #syncContent .sync-progress-label, #syncContent .sync-progress-percent { font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1A1A1A; }
-      #syncContent .sync-progress-percent { color: #666666; }
-      #syncContent .sync-progress-bar { position: relative; width: 100%; height: 3px; background: #CCCCCC; border-radius: 4px; overflow: hidden; }
-      #syncContent .sync-progress-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #1A1A1A; border-radius: 4px; transition: width .2s ease; }
-      /* 移除图片按钮样式 */
-      .remove-image-btn:hover { background: rgba(255,0,0,0.8) !important; }
-      .remove-image-btn:active { background: rgba(255,0,0,0.9) !important; }
+      
+      /* 图片上传区域样式 - 严格按照Figma设计 */
+      #syncContent .image-drop-zone {
+        border: 0.5px solid #CCCCCC;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #FAFAFA;
+        width: 64px;
+        height: 64px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-top: 8px;
+        box-sizing: border-box;
+      }
+      #syncContent .image-drop-zone:hover {
+        border-color: #1A1A1A;
+        background: #F5F5F5;
+      }
+      #syncContent .image-drop-icon {
+        font-size: 16px;
+        opacity: 0.6;
+      }
+      
+      /* 图片预览样式 - 严格按照Figma设计 */
+      #syncContent .image-preview-container {
+        margin-top: 8px;
+        width: 64px;
+        height: 64px;
+        position: relative;
+      }
+      #syncContent .image-preview {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border: 0.5px solid #CCCCCC;
+        border-radius: 4px;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+      #syncContent .preview-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        border-radius: 4px;
+      }
+      #syncContent .remove-image-btn {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+        font-size: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s ease;
+      }
+      #syncContent .remove-image-btn:hover {
+        background: rgba(255,0,0,0.8);
+      }
+      #syncContent .remove-image-btn:active {
+        background: rgba(255,0,0,0.9);
+      }
+      
+      /* 按钮样式 - 严格按照Figma设计 */
+      #syncContent .sync-actions { 
+        padding-top: 8px; 
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      #syncContent .sync-button { 
+        width: 100%; 
+        height: 29px; 
+        background: #222222; 
+        color: #FFFFFF; 
+        border: none; 
+        border-radius: 4px; 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        cursor: pointer; 
+        transition: background 0.2s ease;
+        padding: 6px 20px;
+        box-sizing: border-box;
+      }
+      #syncContent .sync-button:hover {
+        background: #333333;
+      }
+      #syncContent .sync-button:disabled { 
+        background: #DDDDDD; 
+        color: #999999; 
+        cursor: not-allowed; 
+      }
+      #syncContent .sync-cancel { 
+        background: #F2F2F2;
+        color: #222222;
+        border: 0.5px solid #CCCCCC;
+        height: 29px;
+        border-radius: 4px;
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        cursor: pointer;
+        padding: 6px 20px;
+        box-sizing: border-box;
+      }
+      #syncContent .sync-cancel:hover {
+        background: #EEEEEE;
+      }
+      
+      /* 进度条样式 - 严格按照Figma设计 */
+      #syncContent .sync-progress { 
+        display: none; 
+        gap: 4px; 
+        margin-top: 10px; 
+        flex-direction: column;
+      }
+      #syncContent .sync-progress-head { 
+        display: flex; 
+        flex-direction: row; 
+        gap: 4px; 
+        align-items: center; 
+        justify-content: flex-start;
+      }
+      #syncContent .sync-progress-label, 
+      #syncContent .sync-progress-percent { 
+        font: 400 12px/17px 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: #222222; 
+      }
+      #syncContent .sync-progress-bar { 
+        position: relative; 
+        width: 100%; 
+        height: 3px; 
+        background: #CCCCCC; 
+        border-radius: 4px; 
+        overflow: hidden; 
+      }
+      #syncContent .sync-progress-fill { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        height: 100%; 
+        width: 0%; 
+        background: #222222; 
+        border-radius: 4px; 
+        transition: width .2s ease; 
+      }
     </style>
 
     <div class="sync-panel">
       <div class="sync-field selection-block">
         <div class="sync-label">选择状态</div>
-        <div class="sync-hint" id="frame-selection-info">请选择至少 2 个 Frame，将按从左到右、从上到下的顺序同步文本</div>
+        <div class="sync-hint" id="frame-selection-info">请选择至少 2 个对象</div>
       </div>
 
       <div class="sync-field">
         <div class="sync-label">同步源</div>
-        <div class="source-options" style="margin-bottom: 8px;">
-          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <!-- 源类型选择器 -->
+        <div class="source-type-selector">
+          <label class="radio-option">
             <input type="radio" name="sourceType" value="frame" checked onchange="toggleSourceType()">
-            <span style="font-size: 12px; color: #222222;">选择Frame作为源</span>
+            <span class="radio-label">Frame</span>
           </label>
-          <label style="display: flex; align-items: center; gap: 8px;">
+          <label class="radio-option">
             <input type="radio" name="sourceType" value="image" onchange="toggleSourceType()">
-            <span style="font-size: 12px; color: #222222;">上传图片作为源</span>
+            <span class="radio-label">图片</span>
           </label>
         </div>
         
@@ -583,45 +793,46 @@
           <option value="">请选择内容来源的 Frame</option>
         </select>
         
-        <!-- 图片上传器 -->
+        <!-- 图片上传器 - 严格按照Figma设计 -->
         <div class="image-upload" id="imageUpload" style="display: none;">
-          <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(this)" style="display: none;">
-          
-          <!-- 图片操作按钮 -->
-          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <button type="button" class="btn-secondary" onclick="document.getElementById('imageInput').click()" style="flex: 1;">
-            选择图片
-          </button>
-            <button type="button" class="btn-secondary" id="pasteImageBtn" onclick="pasteImage()" style="flex: 1;">
-              粘贴图片
-            </button>
+          <!-- 图片选择区域 -->
+          <div class="image-select-area" id="imageSelectArea">
+            <div class="image-drop-zone" onclick="document.getElementById('imageInput').click()" 
+                 ondrop="handleDrop(event)" 
+                 ondragover="handleDragOver(event)" 
+                 ondragleave="handleDragLeave(event)">
+              <div class="image-drop-icon">+</div>
+          </div>
           </div>
           
-          <!-- 图片预览和移除 -->
+          <!-- 图片预览区域 -->
           <div class="image-preview-container" id="imagePreviewContainer" style="display: none;">
-            <div class="image-preview" id="imagePreview" style="max-width: 100%; max-height: 200px; border: 1px solid #CCCCCC; border-radius: 4px; overflow: hidden; position: relative;">
-            <img id="previewImg" style="width: 100%; height: auto; display: block;">
-              <button type="button" class="remove-image-btn" id="removeImageBtn" onclick="removeImage()" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;">×</button>
+            <div class="image-preview" id="imagePreview">
+              <img id="previewImg" class="preview-image">
+              <button type="button" class="remove-image-btn" id="removeImageBtn" onclick="removeImage()">×</button>
+            </div>
           </div>
-            <div class="image-info" id="imageInfo" style="font-size: 11px; color: #666; margin-top: 4px;"></div>
-          </div>
+          
+          <!-- 隐藏的文件输入 -->
+          <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(this)" style="display: none;">
         </div>
       </div>
 
       <!-- 已按用户要求移除“匹配阈值”和“同步源 Frame”选项，采用默认策略 -->
 
+      <!-- 按钮区域 -->
       <div class="sync-field sync-actions">
-        <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>开始顺序同步</button>
-        <button class="btn-secondary sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">停止</button>                                                                                           
+        <button class="sync-button" id="syncBtn" onclick="syncFrames()" disabled>同步</button>
+        <button class="sync-button sync-cancel" id="cancelBtn" onclick="cancelSync()" style="display: none;">停止</button>                                                                                           
       </div>
 
       <!-- 进度展示 -->
       <div class="sync-progress" id="progressContainer">
         <div class="sync-progress-head">
-          <div class="sync-progress-label">同步进度</div>
+          <div class="sync-progress-label">进度</div>
           <div class="sync-progress-percent" id="progressPercent">0%</div>
         </div>
-        <div class="sync-progress-bar" style="margin-top: 2px;">
+        <div class="sync-progress-bar">
           <div class="sync-progress-fill" id="progressFill"></div>
         </div>
         <!-- 兼容旧逻辑的隐藏文本容器 -->
@@ -1149,11 +1360,12 @@
     function showImagePreview(imageData, fileName, fileSize) {
         const previewImg = document.getElementById('previewImg');
       const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-        const imageInfo = document.getElementById('imageInfo');
-        
+      const imageSelectArea = document.getElementById('imageSelectArea');
+      
+      // 显示预览，隐藏选择区域
       previewImg.src = imageData;
       imagePreviewContainer.style.display = 'block';
-      imageInfo.textContent = `文件: ${fileName} (${(fileSize / 1024).toFixed(1)}KB)`;
+      imageSelectArea.style.display = 'none';
         
         // 存储图片数据
       window.uploadedImageData = imageData;
@@ -1216,9 +1428,11 @@
       // 清除图片数据
       window.uploadedImageData = null;
       
-      // 隐藏预览
+      // 隐藏预览，显示选择区域
       const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+      const imageSelectArea = document.getElementById('imageSelectArea');
       imagePreviewContainer.style.display = 'none';
+      imageSelectArea.style.display = 'block';
       
       // 清空文件输入
       const imageInput = document.getElementById('imageInput');
@@ -1228,6 +1442,40 @@
       updateSyncButtonState();
       
       showStatus('图片已移除', 'info');
+    }
+
+    // 拖拽处理函数
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.style.borderColor = '#1A1A1A';
+      event.currentTarget.style.background = '#F0F0F0';
+    }
+
+    function handleDragLeave(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.style.borderColor = '#CCCCCC';
+      event.currentTarget.style.background = '#FAFAFA';
+    }
+
+    function handleDrop(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // 恢复样式
+      event.currentTarget.style.borderColor = '#CCCCCC';
+      event.currentTarget.style.background = '#FAFAFA';
+      
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('image/')) {
+          processImageFile(file, file.name);
+        } else {
+          showStatus('请拖拽图片文件', 'error');
+        }
+      }
     }
 
     // 更新同步按钮状态
