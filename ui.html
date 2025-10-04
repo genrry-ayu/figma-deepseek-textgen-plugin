@@ -936,6 +936,36 @@
           document.getElementById('translateBtn').disabled = false;
           document.getElementById('translateCancelBtn').style.display = 'none';
           break;
+        case 'perform-ocr':
+          // 处理OCR识别请求
+          (async () => {
+            try {
+              const imageData = msg.imageData;
+              const ocrText = await performOCRRecognition(imageData);
+              
+              // 发送OCR结果回插件
+              parent.postMessage({
+                pluginMessage: {
+                  type: 'ocr-result',
+                  success: true,
+                  text: ocrText
+                }
+              }, '*');
+              
+            } catch (error) {
+              console.error('OCR识别失败:', error);
+              
+              // 发送错误结果回插件
+              parent.postMessage({
+                pluginMessage: {
+                  type: 'ocr-result',
+                  success: false,
+                  error: error.message
+                }
+              }, '*');
+            }
+          })();
+          break;
       }
     };
     
@@ -1298,35 +1328,6 @@
       }
     }
 
-    // 监听来自插件的OCR请求
-    window.addEventListener('message', async (event) => {
-      if (event.data.pluginMessage && event.data.pluginMessage.type === 'perform-ocr') {
-        try {
-          const imageData = event.data.pluginMessage.imageData;
-          const ocrText = await performOCRRecognition(imageData);
-          
-          // 发送OCR结果回插件
-          parent.postMessage({
-            pluginMessage: {
-              type: 'ocr-result',
-              success: true,
-              text: ocrText
-            }
-          }, '*');
-          
-        } catch (error) {
-          console.error('OCR识别失败:', error);
-          
-          // 发送错误结果回插件
-          parent.postMessage({
-            pluginMessage: {
-              type: 'ocr-result',
-              success: false,
-              error: error.message
-            }
-          }, '*');
-        }
-    });
 
     
     // 取消同步
