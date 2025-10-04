@@ -1403,7 +1403,7 @@
           // 多种预处理策略
           const processedImages = [];
           
-          // 策略1：高对比度二值化
+          // 策略1：高对比度二值化（优化版）
           const highContrastData = new Uint8ClampedArray(data);
           for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
@@ -1415,14 +1415,14 @@
             
             // 高对比度处理
             let enhanced = gray;
-            if (gray < 120) {
-              enhanced = Math.max(0, gray * 0.3); // 大幅加深暗色
+            if (gray < 128) {
+              enhanced = Math.max(0, gray * 0.2); // 大幅加深暗色
             } else {
-              enhanced = Math.min(255, gray * 1.5); // 大幅提亮亮色
+              enhanced = Math.min(255, gray * 1.8); // 大幅提亮亮色
             }
             
-            // 二值化
-            const binary = enhanced > 100 ? 255 : 0;
+            // 自适应二值化
+            const binary = enhanced > 80 ? 255 : 0;
             
             highContrastData[i] = binary;     // R
             highContrastData[i + 1] = binary; // G
@@ -1488,9 +1488,24 @@
         const processedImages = await preprocessImage(imageData);
         console.log(`生成了 ${processedImages.length} 个预处理图片`);
         
-        // 优化的OCR配置
+        // 优化的OCR配置 - 减少误识别
         const ocrConfigs = [
-          // 配置1：英文优先，适合英文文本
+          // 配置1：纯英文，严格字符限制
+          {
+            lang: 'eng',
+            options: {
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
+            }
+              },
+              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
+              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+              preserve_interword_spaces: '1'
+            }
+          },
+          // 配置2：英文，单行文本模式
           {
             lang: 'eng',
             options: {
@@ -1499,54 +1514,65 @@
                   console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
                 }
               },
-              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
+              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_TEXT_LINE,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+              preserve_interword_spaces: '1'
             }
           },
-          // 配置2：中英混合，适合混合文本
+          // 配置3：英文，原始引擎
           {
-            lang: 'eng+chi_sim',
+            lang: 'eng',
             options: {
               logger: m => {
                 if (m.status === 'recognizing text') {
                   console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
                 }
               },
+              tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
               tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
-            }
-          },
-          // 配置3：中文优先
-          {
-            lang: 'chi_sim+eng',
-            options: {
-              logger: m => {
-                if (m.status === 'recognizing text') {
-                  console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
-                }
-              },
-              tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
-            }
-          },
-          // 配置4：稀疏文本模式
-          {
-            lang: 'eng',
-            options: {
-              logger: m => {
-                if (m.status === 'recognizing text') {
-                  console.log(`OCR进度: ${Math.round(m.progress * 100)}%`);
-                }
-              },
-              tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+              tessedit_ocr_engine_mode: Tesseract.OEM.TESSERACT_ONLY,
+              preserve_interword_spaces: '1'
             }
           }
         ];
         
         let bestResult = null;
         let bestConfidence = 0;
+        
+        // 结果质量评估函数
+        const evaluateResultQuality = (text, confidence) => {
+          if (!text || text.trim().length === 0) return 0;
+          
+          let score = confidence;
+          
+          // 检查重复内容（扣分）
+          const words = text.split(/\s+/);
+          const uniqueWords = new Set(words);
+          const repetitionRatio = uniqueWords.size / words.length;
+          score *= repetitionRatio;
+          
+          // 检查无效字符（扣分）
+          const validCharCount = (text.match(/[a-zA-Z0-9\s]/g) || []).length;
+          const totalCharCount = text.length;
+          const validityRatio = validCharCount / totalCharCount;
+          score *= validityRatio;
+          
+          // 检查中文误识别字符（扣分）
+          const chineseErrorCount = (text.match(/[氏水]/g) || []).length;
+          score -= chineseErrorCount * 10;
+          
+          // 长度合理性（加分/扣分）
+          if (text.length >= 5 && text.length <= 50) {
+            score += 5; // 合理长度加分
+          } else if (text.length > 100) {
+            score -= 10; // 过长扣分
+          }
+          
+          console.log(`质量评估 - 文本: "${text}", 置信度: ${confidence}, 重复率: ${repetitionRatio.toFixed(2)}, 有效性: ${validityRatio.toFixed(2)}, 最终得分: ${score.toFixed(2)}`);
+          
+          return score;
+        };
         
         // 尝试不同的图片和配置组合
         for (let imgIndex = 0; imgIndex < processedImages.length; imgIndex++) {
@@ -1564,12 +1590,15 @@
                 config.options
               );
               
-              console.log(`图片${imgIndex + 1} 配置${configIndex + 1} 结果:`, text, '置信度:', confidence);
+              console.log(`图片${imgIndex + 1} 配置${configIndex + 1} 原始结果:`, text, '置信度:', confidence);
               
-              // 选择置信度最高的结果
-              if (confidence > bestConfidence && text && text.trim().length > 0) {
+              // 使用质量评估而不是仅看置信度
+              const qualityScore = evaluateResultQuality(text, confidence);
+              
+              if (qualityScore > bestConfidence && text && text.trim().length > 0) {
                 bestResult = text;
-                bestConfidence = confidence;
+                bestConfidence = qualityScore;
+                console.log(`新的最佳结果: "${text}", 质量得分: ${qualityScore.toFixed(2)}`);
               }
             } catch (configError) {
               console.warn(`图片${imgIndex + 1} 配置${configIndex + 1} 失败:`, configError);
@@ -1632,10 +1661,10 @@
         }
         
         return cleanedText;
-        
-      } catch (error) {
-        console.error('OCR识别失败:', error);
-        
+          
+        } catch (error) {
+          console.error('OCR识别失败:', error);
+          
         // 提供更具体的错误信息
         if (error.message.includes('network') || error.message.includes('fetch')) {
           throw new Error('网络连接失败，无法下载OCR训练数据，请检查网络连接');
@@ -1655,9 +1684,30 @@
       
       let corrected = text;
       
-      // 修复常见的字符识别错误
+      console.log('原始OCR结果:', corrected);
+      
+      // 1. 去除重复的文本模式
+      const removeDuplicates = (str) => {
+        // 查找重复的文本模式并只保留一个
+        const words = str.split(/\s+/);
+        const seen = new Set();
+        const unique = [];
+        
+        for (const word of words) {
+          const cleanWord = word.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+          if (cleanWord && !seen.has(cleanWord)) {
+            seen.add(cleanWord);
+            unique.push(word);
+          }
+        }
+        
+        return unique.join(' ');
+      };
+      
+      // 2. 修复常见的字符识别错误
       const corrections = [
-        // 修复缺失的字母
+        // 修复time相关的错误
+        { pattern: /ttime\b/g, replacement: 'time' }, // ttime -> time
         { pattern: /ime\b/g, replacement: 'time' }, // ime -> time
         { pattern: /lime\b/g, replacement: 'time' }, // lime -> time
         { pattern: /tme\b/g, replacement: 'time' }, // tme -> time
@@ -1673,9 +1723,6 @@
         // 修复连字符问题
         { pattern: /-\s+/g, replacement: '-' }, // 连字符后的空格
         { pattern: /\s+-/g, replacement: '-' }, // 连字符前的空格
-        
-        // 修复多余的空格
-        { pattern: /\s+/g, replacement: ' ' }, // 多个空格合并为一个
       ];
       
       // 应用所有修正
@@ -1683,7 +1730,21 @@
         corrected = corrected.replace(correction.pattern, correction.replacement);
       }
       
-      console.log('OCR后处理:', text, '->', corrected);
+      console.log('修正后:', corrected);
+      
+      // 3. 去除重复内容
+      corrected = removeDuplicates(corrected);
+      console.log('去重后:', corrected);
+      
+      // 4. 清理无效字符，只保留英文、数字和空格
+      corrected = corrected
+        .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s]/g, '') // 移除特殊字符
+        .replace(/[氏水]/g, '') // 移除常见的中文误识别字符
+        .replace(/\s+/g, ' ') // 合并多个空格
+        .trim();
+      
+      console.log('最终清理后:', corrected);
+      
       return corrected;
     }
 
