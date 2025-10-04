@@ -135,7 +135,7 @@
     
     
     /* 废弃：老的 selection-info 提示样式，避免与新规范冲突（保留占位，故不生效样式） */
-    .selection-info {}
+    .selection-info { display: none; }
     
     
     
@@ -1237,12 +1237,12 @@
       const sourceFrameSelect = document.getElementById('sourceFrame');
       
       if (selectedFrames.length < 2) {
-        info.textContent = '请先在画布中选择至少2个Frame，将按从左到右、从上到下的顺序同步文本';
+        info.textContent = '请选择至少 2 个对象';
         info.className = 'sync-hint';
         syncBtn.disabled = true;
         sourceFrameSelect.disabled = true;
       } else {
-        info.textContent = `已选择 ${selectedFrames.length} 个Frame，请选择源Frame（将按顺序同步文本）`;
+        info.textContent = `已选择 ${selectedFrames.length} 个对象，请选择源Frame`;
         info.className = 'sync-hint';
         sourceFrameSelect.disabled = false;
         
